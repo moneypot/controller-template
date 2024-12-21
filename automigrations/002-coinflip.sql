@@ -7,7 +7,7 @@ create table app.coinflip_bet (
   net          float not null, -- negative if lost, wager*(multiplier-1) if won
   currency_key text  not null,
 
-  -- lets us easily look up the lastest bets for users, casinos, experiences
+  -- lets us easily look up the latest bets for users, casinos, experiences
   user_id       uuid not null references caas.user(id),
   casino_id     uuid not null references caas.casino(id), 
   experience_id uuid not null references caas.experience(id), 

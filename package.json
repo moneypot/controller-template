@@ -6,7 +6,7 @@
     "resetdb": "dropdb controller-template && createdb controller-template"
   },
   "dependencies": {
-    "@moneypot/caas": "^10.1.2",
+    "@moneypot/caas": "^12.0.0",
     "dotenv": "^16.4.5",
     "graphql": "^16.9.0"
   },
