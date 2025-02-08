@@ -1,5 +1,5 @@
-drop schema if exists app cascade;        
-drop schema if exists app_secret cascade; 
+drop schema if exists app cascade;
+drop schema if exists app_secret cascade;
 
 create schema app; -- For public info
 create schema app_secret; -- For private info

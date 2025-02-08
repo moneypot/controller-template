@@ -3,6 +3,7 @@ import { GraphQLError } from "@moneypot/caas/graphql";
 import { superuserPool, withPgPoolTransaction } from "@moneypot/caas/db";
 import { exactlyOneRow, maybeOneRow } from "@moneypot/caas/db/util";
 import * as crypto from "crypto";
+import { PluginContext } from "@moneypot/caas";
 
 const HOUSE_EDGE = 0.01; // 1% house edge
 
@@ -31,13 +32,15 @@ export const MakeCoinflipBetPlugin = makeExtendSchemaPlugin(() => {
     `,
     resolvers: {
       Mutation: {
-        async makeCoinflipBet(_query, args, context) {
-          const { session } = context;
+        async makeCoinflipBet(_query, args, context: PluginContext) {
+          const { identity } = context;
           const { input } = args;
 
-          if (!session) {
+          if (identity?.kind !== "user") {
             throw new GraphQLError("Unauthorized");
           }
+
+          const { session } = identity;
 
           if (input.wager < 1) {
             throw new GraphQLError("Wager must be >= 1");

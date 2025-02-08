@@ -1,17 +1,17 @@
 {
+  "name": "controller-template",
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
-    "dev": "tsx watch src/index.ts",
-    "resetdb": "dropdb controller-template && createdb controller-template"
+    "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@moneypot/caas": "^12.0.0",
-    "dotenv": "^16.4.5",
-    "graphql": "^16.9.0"
+    "@moneypot/caas": "^14",
+    "dotenv": "^16",
+    "graphql": "^16"
   },
   "devDependencies": {
-    "@types/node": "^22.9.0",
-    "typescript": "^5.6.3"
+    "@types/node": "^22",
+    "typescript": "^5"
   }
 }

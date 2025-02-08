@@ -5,12 +5,13 @@ create table app.coinflip_bet (
   heads        boolean not null,
 
   net          float not null, -- negative if lost, wager*(multiplier-1) if won
-  currency_key text  not null,
+  currency_key text  not null, -- e.g. "BTC", "HOUSE"
 
-  -- lets us easily look up the latest bets for users, casinos, experiences
+  -- Remember: the caas database is multi-tenant across every experience on every Moneypot casino.
   user_id       uuid not null references caas.user(id),
-  casino_id     uuid not null references caas.casino(id), 
-  experience_id uuid not null references caas.experience(id), 
+  casino_id     uuid not null references caas.casino(id),
+  experience_id uuid not null references caas.experience(id),
 
+  -- Currencies are unique per casino
   foreign key (currency_key, casino_id) references caas.currency(key, casino_id)
-)
+);
