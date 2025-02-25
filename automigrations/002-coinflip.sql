@@ -21,3 +21,23 @@ create table app.coinflip_bet (
 create index coinflip_bet_user_id_idx on app.coinflip_bet(user_id);
 create index coinflip_bet_casino_id_idx on app.coinflip_bet(casino_id);
 create index coinflip_bet_experience_id_idx on app.coinflip_bet(experience_id);
+
+-- GRANT
+
+-- We need to let our postgraphile user read from the table so it 
+-- can generate graphql api for our CoinflipBet records
+grant select on app.coinflip_bet to app_postgraphile;
+
+-- RLS
+
+-- Important: Unless every row in a table is publicly visible, you want
+-- to enable Row Level Security and provide a policy that conditionally
+-- allows the current user to view each row.
+alter table app.coinflip_bet enable row level security;
+
+create policy select_coinflip_bet on app.coinflip_bet for select using (
+  -- Operator (you, the admin) can see all rows
+  caas_hidden.is_operator() OR
+  -- Users can only see their own rows
+  user_id = caas_hidden.current_user_id()
+);
