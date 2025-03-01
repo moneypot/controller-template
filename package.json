@@ -3,7 +3,9 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@moneypot/caas": "16",
@@ -11,7 +13,11 @@
     "graphql": "16"
   },
   "devDependencies": {
+    "@eslint/js": "^9.21.0",
     "@types/node": "22",
-    "typescript": "5"
+    "eslint": "^9.21.0",
+    "globals": "^16.0.0",
+    "typescript": "5",
+    "typescript-eslint": "^8.25.0"
   }
 }
