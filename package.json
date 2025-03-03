@@ -8,7 +8,7 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@moneypot/caas": "16",
+    "@moneypot/caas": "17",
     "dotenv": "16",
     "graphql": "16"
   },
