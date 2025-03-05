@@ -2,7 +2,7 @@
   "name": "controller-template",
   "type": "module",
   "scripts": {
-    "start": "tsx src/index.ts",
+    "start": "node --experimental-transform-types src/index.ts",
     "dev": "tsx watch src/index.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
@@ -17,6 +17,7 @@
     "@types/node": "22",
     "eslint": "^9.21.0",
     "globals": "^16.0.0",
+    "tsx": "^4.19.3",
     "typescript": "5",
     "typescript-eslint": "^8.25.0"
   }

@@ -3,7 +3,7 @@ import { GraphQLError } from "@moneypot/caas/graphql";
 import { superuserPool, withPgPoolTransaction } from "@moneypot/caas/db";
 import { exactlyOneRow, maybeOneRow } from "@moneypot/caas/db/util";
 import * as crypto from "crypto";
-import { PluginContext } from "@moneypot/caas";
+import { type PluginContext } from "@moneypot/caas";
 
 const HOUSE_EDGE = 0.01; // 1% house edge
 

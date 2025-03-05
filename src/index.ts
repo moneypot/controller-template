@@ -5,22 +5,32 @@ import {
   type ServerOptions,
 } from "@moneypot/caas";
 import { join } from "node:path";
-import { MakeCoinflipBetPlugin } from "./plugins/make-coinflip-bet.js";
+import { MakeCoinflipBetPlugin } from "./plugins/make-coinflip-bet.ts";
+
+const exportSchemaSDLPath = join(
+  new URL(".", import.meta.url).pathname,
+  "..",
+  "schema.graphql"
+);
+
+console.log(`Exporting graphql schema to "${exportSchemaSDLPath}"`);
+
+const userDatabaseMigrationsPath = join(
+  new URL(".", import.meta.url).pathname,
+  "..",
+  "automigrations"
+);
+
+console.log(
+  `Running user migrations from folder "${userDatabaseMigrationsPath}"`
+);
 
 const options: ServerOptions = {
   plugins: [...defaultPlugins, MakeCoinflipBetPlugin],
-  // Expose our public schema to @moneypot/caas
+  // Expose our public schema to @moneypot/caas so it will generate graphql from it
   extraPgSchemas: ["app"],
-  exportSchemaSDLPath: join(
-    new URL(".", import.meta.url).pathname,
-    "..",
-    "schema.graphql"
-  ),
-  userDatabaseMigrationsPath: join(
-    new URL(".", import.meta.url).pathname,
-    "..",
-    "automigrations"
-  ),
+  exportSchemaSDLPath,
+  userDatabaseMigrationsPath,
 };
 
 startAndListen(options, ({ port }) => {
