@@ -33,6 +33,6 @@ const options: ServerOptions = {
   userDatabaseMigrationsPath,
 };
 
-startAndListen(options, ({ port }) => {
+startAndListen(options).then(({ port }) => {
   console.log(`controller listening on ${port}`);
 });
