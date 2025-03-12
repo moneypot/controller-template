@@ -3,7 +3,7 @@ import {
   defaultPlugins,
   startAndListen,
   type ServerOptions,
-} from "@moneypot/caas";
+} from "@moneypot/hub";
 import { join } from "node:path";
 import { MakeCoinflipBetPlugin } from "./plugins/make-coinflip-bet.ts";
 
@@ -27,7 +27,7 @@ console.log(
 
 const options: ServerOptions = {
   plugins: [...defaultPlugins, MakeCoinflipBetPlugin],
-  // Expose our public schema to @moneypot/caas so it will generate graphql from it
+  // Expose our public schema to @moneypot/hub so it will generate graphql from it
   extraPgSchemas: ["app"],
   exportSchemaSDLPath,
   userDatabaseMigrationsPath,

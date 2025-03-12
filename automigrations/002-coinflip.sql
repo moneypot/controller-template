@@ -1,7 +1,7 @@
 -- Example bet table
 create table app.coinflip_bet (
   -- UUIDv7 gives us time-ordered random UUIDs
-  id           uuid  primary key default caas_hidden.uuid_generate_v7(),
+  id           uuid  primary key default hub_hidden.uuid_generate_v7(),
   wager        float not null,
   heads        boolean not null,
 
@@ -9,12 +9,12 @@ create table app.coinflip_bet (
   currency_key text  not null, -- e.g. "BTC", "HOUSE"
 
   -- Let us easily look up bets per casino and per experience
-  user_id       uuid not null references caas.user(id),
-  casino_id     uuid not null references caas.casino(id),
-  experience_id uuid not null references caas.experience(id),
+  user_id       uuid not null references hub.user(id),
+  casino_id     uuid not null references hub.casino(id),
+  experience_id uuid not null references hub.experience(id),
 
   -- Currencies are unique per casino
-  foreign key (currency_key, casino_id) references caas.currency(key, casino_id)
+  foreign key (currency_key, casino_id) references hub.currency(key, casino_id)
 );
 
 -- Note: Adding foreign key indexes also generates relational queries in our graphql API
@@ -37,7 +37,7 @@ alter table app.coinflip_bet enable row level security;
 
 create policy select_coinflip_bet on app.coinflip_bet for select using (
   -- Operator (you, the admin) can see all rows
-  caas_hidden.is_operator() OR
+  hub_hidden.is_operator() OR
   -- Users can only see their own rows
-  user_id = caas_hidden.current_user_id()
+  user_id = hub_hidden.current_user_id()
 );

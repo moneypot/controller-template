@@ -1,9 +1,9 @@
-import { gql, makeExtendSchemaPlugin } from "@moneypot/caas/graphile";
-import { GraphQLError } from "@moneypot/caas/graphql";
-import { superuserPool, withPgPoolTransaction } from "@moneypot/caas/db";
-import { exactlyOneRow, maybeOneRow } from "@moneypot/caas/db/util";
+import { gql, makeExtendSchemaPlugin } from "@moneypot/hub/graphile";
+import { GraphQLError } from "@moneypot/hub/graphql";
+import { superuserPool, withPgPoolTransaction } from "@moneypot/hub/db";
+import { exactlyOneRow, maybeOneRow } from "@moneypot/hub/db/util";
 import * as crypto from "crypto";
-import { type PluginContext } from "@moneypot/caas";
+import { type PluginContext } from "@moneypot/hub";
 
 const HOUSE_EDGE = 0.01; // 1% house edge
 
@@ -52,7 +52,7 @@ export const MakeCoinflipBetPlugin = makeExtendSchemaPlugin(() => {
               .query<{ key: string }>({
                 text: `
                   SELECT key
-                  FROM caas.currency
+                  FROM hub.currency
                   WHERE key = $1 AND casino_id = $2
                 `,
                 values: [input.currency, session.casino_id],
@@ -67,7 +67,7 @@ export const MakeCoinflipBetPlugin = makeExtendSchemaPlugin(() => {
             const balance = await pgClient
               .query<{ amount: number }>({
                 text: `
-                  select amount from caas.balance
+                  select amount from hub.balance
                   where user_id = $1
                     and casino_id = $2
                     and experience_id = $3
@@ -94,7 +94,7 @@ export const MakeCoinflipBetPlugin = makeExtendSchemaPlugin(() => {
               .query<{ amount: number }>({
                 text: `
                       select amount 
-                      from caas.bankroll
+                      from hub.bankroll
                       where currency_key = $1 
                         and casino_id = $2 
                       for update
@@ -121,7 +121,7 @@ export const MakeCoinflipBetPlugin = makeExtendSchemaPlugin(() => {
 
             await pgClient.query({
               text: `
-                UPDATE caas.balance
+                UPDATE hub.balance
                 SET amount = amount + $1 
                 WHERE user_id = $2 
                   AND casino_id = $3
@@ -139,7 +139,7 @@ export const MakeCoinflipBetPlugin = makeExtendSchemaPlugin(() => {
 
             await pgClient.query({
               text: `
-                UPDATE caas.bankroll
+                UPDATE hub.bankroll
                 SET amount = amount - $1 
                 WHERE currency_key = $2
                   AND casino_id = $3
@@ -169,7 +169,7 @@ export const MakeCoinflipBetPlugin = makeExtendSchemaPlugin(() => {
             // Update bankroll stats
             await pgClient.query({
               text: `
-                update caas.bankroll
+                update hub.bankroll
                 set bets = bets + 1,
                     wagered = wagered + $1
                     expected_value = expected_value + $4
