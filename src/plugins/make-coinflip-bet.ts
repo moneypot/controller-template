@@ -171,7 +171,7 @@ export const MakeCoinflipBetPlugin = makeExtendSchemaPlugin(() => {
               text: `
                 update hub.bankroll
                 set bets = bets + 1,
-                    wagered = wagered + $1
+                    wagered = wagered + $1,
                     expected_value = expected_value + $4
                 where currency_key = $2
                   and casino_id = $3
