@@ -2,7 +2,7 @@
 create table app.coinflip_bet (
   -- UUIDv7 gives us time-ordered random UUIDs
   id           uuid  primary key default hub_hidden.uuid_generate_v7(),
-  wager        float not null,
+  wager        int not null,
   heads        boolean not null,
 
   net          float not null, -- negative if lost, wager*(multiplier-1) if won

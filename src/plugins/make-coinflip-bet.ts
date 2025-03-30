@@ -16,7 +16,7 @@ export const MakeCoinflipBetPlugin = makeExtendSchemaPlugin(() => {
       }
 
       input MakeCoinflipBetInput {
-        wager: Float!
+        wager: Int!
         currency: String!
         target: CoinState!
       }
