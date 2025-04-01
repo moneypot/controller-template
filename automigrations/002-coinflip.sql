@@ -1,11 +1,21 @@
+-- This is an example of what a real migration file could look like.
+-- In this case, it implements a coinflip game.
+
+-- This will codegen into a graphql enum type CoinSide { HEADS, TAILS }
+create type app.coin_side as enum ('HEADS', 'TAILS');
+
 -- Example bet table
 create table app.coinflip_bet (
   -- UUIDv7 gives us time-ordered random UUIDs
   id           uuid  primary key default hub_hidden.uuid_generate_v7(),
   wager        int not null,
-  heads        boolean not null,
+  -- User is betting the coin will land this side up
+  target       app.coin_side not null,
+  -- The coin actually landed this side up
+  outcome      app.coin_side not null,
+  multiplier   float not null, -- e.g. 1.98x for 1% house edge
 
-  net          float not null, -- negative if lost, wager*(multiplier-1) if won
+  net          float not null, -- negative wager if lost, wager*(multiplier-1) if won
   currency_key text  not null, -- e.g. "BTC", "HOUSE"
 
   -- Let us easily look up bets per casino and per experience

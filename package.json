@@ -5,20 +5,23 @@
     "start": "node --experimental-transform-types src/index.ts",
     "dev": "tsx watch src/index.ts",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "codegen": "graphql-codegen --config codegen.ts"
   },
   "dependencies": {
-    "@moneypot/hub": "1",
+    "@moneypot/hub": "^1.2.0",
     "dotenv": "16",
-    "graphql": "16"
+    "graphql": "16",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
+    "@graphql-codegen/cli": "^5.0.5",
     "@types/node": "22",
     "eslint": "^9.21.0",
     "globals": "^16.0.0",
     "tsx": "^4.19.3",
-    "typescript": "5",
+    "typescript": "^5.8.2",
     "typescript-eslint": "^8.25.0"
   }
 }

@@ -8,6 +8,14 @@ See [moneypot/experience-react-template](https://github.com/moneypot/experience-
 
 - Rename `.env.template` to `.env` and customize it. (esp change the database urls)
 
+## Codegen graphql types
+
+```bash
+npm run codegen
+```
+
+This will generate the `src/__generated__/graphql.ts` file from the schema.graphql file that hub generates every time it launches.
+
 ## Reset database
 
 If you clear out @moneypot/hub' migration version tracking schemas, then it will reset its own `hub` tables and rerun your migrations.

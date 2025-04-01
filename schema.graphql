@@ -5,7 +5,7 @@ strings and not numbers.
 """
 scalar BigInt
 
-enum CoinState {
+enum CoinSide {
   HEADS
   TAILS
 }
@@ -14,7 +14,6 @@ type CoinflipBet {
   casinoId: UUID!
   currencyKey: String!
   experienceId: UUID!
-  heads: Boolean!
 
   """Reads a single `HubCasino` that is related to this `CoinflipBet`."""
   hubCasinoByCasinoId: HubCasino
@@ -29,8 +28,10 @@ type CoinflipBet {
   hubUserByUserId: HubUser
   id: UUID!
   net: Float!
+  outcome: CoinSide!
+  target: CoinSide!
   userId: UUID!
-  wager: Float!
+  wager: Int!
 }
 
 """
@@ -206,6 +207,7 @@ type HubBalance {
 
   """Reads a single `HubUser` that is related to this `HubBalance`."""
   hubUserByUserId: HubUser
+  id: UUID!
   userId: UUID!
 }
 
@@ -223,6 +225,9 @@ input HubBalanceCondition {
 
   """Checks for equality with the object’s `experienceId` field."""
   experienceId: UUID
+
+  """Checks for equality with the object’s `id` field."""
+  id: UUID
 
   """Checks for equality with the object’s `userId` field."""
   userId: UUID
@@ -260,6 +265,8 @@ enum HubBalanceOrderBy {
   CASINO_ID_DESC
   EXPERIENCE_ID_ASC
   EXPERIENCE_ID_DESC
+  ID_ASC
+  ID_DESC
   NATURAL
   PRIMARY_KEY_ASC
   PRIMARY_KEY_DESC
@@ -615,6 +622,35 @@ type HubCasino {
     """The method to use when ordering `HubSession`."""
     orderBy: [HubSessionOrderBy!] = [PRIMARY_KEY_ASC]
   ): HubSessionConnection!
+
+  """Reads and enables pagination through a set of `HubTakeRequest`."""
+  hubTakeRequestsByCasinoId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: HubTakeRequestCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `HubTakeRequest`."""
+    orderBy: [HubTakeRequestOrderBy!] = [PRIMARY_KEY_ASC]
+  ): HubTakeRequestConnection!
 
   """Reads and enables pagination through a set of `HubUser`."""
   hubUsersByCasinoId(
@@ -1103,6 +1139,35 @@ type HubExperience {
     orderBy: [HubSessionOrderBy!] = [PRIMARY_KEY_ASC]
   ): HubSessionConnection!
 
+  """Reads and enables pagination through a set of `HubTakeRequest`."""
+  hubTakeRequestsByExperienceId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: HubTakeRequestCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `HubTakeRequest`."""
+    orderBy: [HubTakeRequestOrderBy!] = [PRIMARY_KEY_ASC]
+  ): HubTakeRequestConnection!
+
   """Reads and enables pagination through a set of `HubWithdrawalRequest`."""
   hubWithdrawalRequestsByExperienceId(
     """Read all values in the set after (below) this cursor."""
@@ -1377,6 +1442,21 @@ enum HubJwkSetSnapshotOrderBy {
   PRIMARY_KEY_DESC
 }
 
+enum HubMpTakeRequestStatus {
+  CONTROLLER_REJECTED
+  PENDING
+  TRANSFERRED
+  USER_CANCELED
+}
+
+enum HubMpTransferStatus {
+  CANCELED
+  COMPLETED
+  EXPIRED
+  PENDING
+  UNCLAIMED
+}
+
 type HubSession {
   casinoId: UUID!
   experienceId: UUID!
@@ -1459,6 +1539,121 @@ enum HubSessionOrderBy {
   PRIMARY_KEY_DESC
   USER_ID_ASC
   USER_ID_DESC
+}
+
+type HubTakeRequest {
+  amount: Float
+  casinoId: UUID!
+  currencyKey: String!
+  experienceId: UUID!
+
+  """Reads a single `HubCasino` that is related to this `HubTakeRequest`."""
+  hubCasinoByCasinoId: HubCasino
+
+  """Reads a single `HubCurrency` that is related to this `HubTakeRequest`."""
+  hubCurrencyByCurrencyKeyAndCasinoId: HubCurrency
+
+  """
+  Reads a single `HubExperience` that is related to this `HubTakeRequest`.
+  """
+  hubExperienceByExperienceId: HubExperience
+
+  """Reads a single `HubUser` that is related to this `HubTakeRequest`."""
+  hubUserByUserId: HubUser
+  id: UUID!
+  mpStatus: HubMpTakeRequestStatus!
+  mpTakeRequestId: UUID!
+  mpTransferId: UUID
+  mpTransferStatus: HubMpTransferStatus
+  reservedAmount: Float!
+  status: HubTakeRequestStatus!
+  statusChangedAt: Datetime!
+  transferCompletionAttemptedAt: Datetime
+  transferNeedsCompletion: Boolean!
+  updatedAt: Datetime!
+  userId: UUID!
+}
+
+"""
+A condition to be used against `HubTakeRequest` object types. All fields are
+tested for equality and combined with a logical ‘and.’
+"""
+input HubTakeRequestCondition {
+  """Checks for equality with the object’s `casinoId` field."""
+  casinoId: UUID
+
+  """Checks for equality with the object’s `experienceId` field."""
+  experienceId: UUID
+
+  """Checks for equality with the object’s `id` field."""
+  id: UUID
+
+  """Checks for equality with the object’s `mpTakeRequestId` field."""
+  mpTakeRequestId: UUID
+
+  """Checks for equality with the object’s `status` field."""
+  status: HubTakeRequestStatus
+
+  """Checks for equality with the object’s `updatedAt` field."""
+  updatedAt: Datetime
+
+  """Checks for equality with the object’s `userId` field."""
+  userId: UUID
+}
+
+"""A connection to a list of `HubTakeRequest` values."""
+type HubTakeRequestConnection {
+  """
+  A list of edges which contains the `HubTakeRequest` and cursor to aid in pagination.
+  """
+  edges: [HubTakeRequestEdge]!
+
+  """A list of `HubTakeRequest` objects."""
+  nodes: [HubTakeRequest]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `HubTakeRequest` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `HubTakeRequest` edge in the connection."""
+type HubTakeRequestEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `HubTakeRequest` at the end of the edge."""
+  node: HubTakeRequest
+}
+
+"""Methods to use when ordering `HubTakeRequest`."""
+enum HubTakeRequestOrderBy {
+  CASINO_ID_ASC
+  CASINO_ID_DESC
+  EXPERIENCE_ID_ASC
+  EXPERIENCE_ID_DESC
+  ID_ASC
+  ID_DESC
+  MP_TAKE_REQUEST_ID_ASC
+  MP_TAKE_REQUEST_ID_DESC
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  STATUS_ASC
+  STATUS_DESC
+  UPDATED_AT_ASC
+  UPDATED_AT_DESC
+  USER_ID_ASC
+  USER_ID_DESC
+}
+
+enum HubTakeRequestStatus {
+  COMPLETED
+  FAILED
+  PENDING
+  PROCESSING
+  REJECTED
 }
 
 enum HubTransferStatusKind {
@@ -1620,6 +1815,35 @@ type HubUser {
     """The method to use when ordering `HubSession`."""
     orderBy: [HubSessionOrderBy!] = [PRIMARY_KEY_ASC]
   ): HubSessionConnection!
+
+  """Reads and enables pagination through a set of `HubTakeRequest`."""
+  hubTakeRequestsByUserId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: HubTakeRequestCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `HubTakeRequest`."""
+    orderBy: [HubTakeRequestOrderBy!] = [PRIMARY_KEY_ASC]
+  ): HubTakeRequestConnection!
 
   """Reads and enables pagination through a set of `HubWithdrawalRequest`."""
   hubWithdrawalRequestsByUserId(
@@ -1964,13 +2188,13 @@ scalar JSON
 
 input MakeCoinflipBetInput {
   currency: String!
-  target: CoinState!
-  wager: Float!
+  target: CoinSide!
+  wager: Int!
 }
 
 type MakeCoinflipBetPayload {
   id: UUID!
-  result: CoinState!
+  result: CoinSide!
 }
 
 """
@@ -2105,7 +2329,7 @@ type Query {
   hubApiKeyByKey(key: UUID!): HubApiKey
 
   """Get a single `HubBalance`."""
-  hubBalanceByCasinoIdAndUserIdAndExperienceIdAndCurrencyKey(casinoId: UUID!, currencyKey: String!, experienceId: UUID!, userId: UUID!): HubBalance
+  hubBalanceById(id: UUID!): HubBalance
 
   """Get a single `HubBankroll`."""
   hubBankrollById(id: UUID!): HubBankroll
@@ -2140,6 +2364,12 @@ type Query {
 
   """Get a single `HubSession`."""
   hubSessionById(id: UUID!): HubSession
+
+  """Get a single `HubTakeRequest`."""
+  hubTakeRequestById(id: UUID!): HubTakeRequest
+
+  """Get a single `HubTakeRequest`."""
+  hubTakeRequestByMpTakeRequestId(mpTakeRequestId: UUID!): HubTakeRequest
 
   """Get a single `HubUser`."""
   hubUserById(id: UUID!): HubUser

@@ -1,8 +1,12 @@
 {
-  // https://nodejs.org/api/typescript.html#type-stripping
+  // "exclude": ["src/__generated__/**/*.ts"],
   "compilerOptions": {
-    /* Visit https://aka.ms/tsconfig to read more about this file */
+    // https://nodejs.org/api/typescript.html#type-stripping
+    "noEmit": true,
     "rewriteRelativeImportExtensions": true,
+    "erasableSyntaxOnly": true,
+
+    /* Visit https://aka.ms/tsconfig to read more about this file */
 
     /* Projects */
     // "incremental": true,                              /* Save .tsbuildinfo files to allow for incremental compilation of projects. */
