@@ -45,9 +45,14 @@ grant select on app.coinflip_bet to app_postgraphile;
 -- allows the current user to view each row.
 alter table app.coinflip_bet enable row level security;
 
+drop policy if exists select_coinflip_bet on app.coinflip_bet;
 create policy select_coinflip_bet on app.coinflip_bet for select using (
   -- Operator (you, the admin) can see all rows
   hub_hidden.is_operator() OR
-  -- Users can only see their own rows
-  user_id = hub_hidden.current_user_id()
+  -- Users can only see their own rows for the current experience and casino
+  (
+    user_id = hub_hidden.current_user_id() AND
+    experience_id = hub_hidden.current_experience_id() AND
+    casino_id = hub_hidden.current_casino_id()
+  )
 );
