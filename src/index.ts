@@ -26,7 +26,11 @@ console.log(
 );
 
 const options: ServerOptions = {
-  plugins: [...defaultPlugins, MakeCoinflipBetPlugin],
+  plugins: [
+    ...defaultPlugins,
+    // Add your plugins here
+    MakeCoinflipBetPlugin,
+  ],
   // Expose our public schema to @moneypot/hub so it will generate graphql from it
   extraPgSchemas: ["app"],
   exportSchemaSDLPath,

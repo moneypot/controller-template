@@ -18,7 +18,7 @@ create table app.coinflip_bet (
   net          float not null, -- negative wager if lost, wager*(multiplier-1) if won
   currency_key text  not null, -- e.g. "BTC", "HOUSE"
 
-  -- Let us easily look up bets per casino and per experience
+  -- Pretty much every table in your database should have these three columns
   user_id       uuid not null references hub.user(id),
   casino_id     uuid not null references hub.casino(id),
   experience_id uuid not null references hub.experience(id),
