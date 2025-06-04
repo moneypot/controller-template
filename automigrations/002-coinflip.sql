@@ -42,17 +42,20 @@ grant select on app.coinflip_bet to app_postgraphile;
 
 -- Important: Unless every row in a table is publicly visible, you want
 -- to enable Row Level Security and provide a policy that conditionally
--- allows the current user to view each row.
+-- allows the current user to view certain (or all) rows.
 alter table app.coinflip_bet enable row level security;
 
 drop policy if exists select_coinflip_bet on app.coinflip_bet;
+
+-- Note: As saft as it looks, using subqueries like `id = (select fn())` is a 
+-- better habit than `id = fn()` so that postgres can more easily cache it.
 create policy select_coinflip_bet on app.coinflip_bet for select using (
   -- Operator (you, the admin) can see all rows
-  hub_hidden.is_operator() OR
+  (select hub_hidden.is_operator()) OR
   -- Users can only see their own rows for the current experience and casino
   (
-    user_id = hub_hidden.current_user_id() AND
-    experience_id = hub_hidden.current_experience_id() AND
-    casino_id = hub_hidden.current_casino_id()
+    user_id = (select hub_hidden.current_user_id()) AND
+    experience_id = (select hub_hidden.current_experience_id()) AND
+    casino_id = (select hub_hidden.current_casino_id())
   )
 );

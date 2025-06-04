@@ -30,6 +30,7 @@ type CoinflipBet {
   """Reads a single `HubUser` that is related to this `CoinflipBet`."""
   hubUserByUserId: HubUser
   id: UUID!
+  multiplier: Float!
   net: Float!
   outcome: CoinSide!
   target: CoinSide!
