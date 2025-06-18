@@ -8,7 +8,6 @@ import {
 } from "@moneypot/hub/db";
 import { exactlyOneRow, maybeOneRow } from "@moneypot/hub/db/util";
 import * as crypto from "crypto";
-import { type PluginContext } from "@moneypot/hub";
 import { CoinSide } from "../__generated__/graphql.ts";
 import type { DbCoinflipBet } from "../dbtypes.ts";
 import { z } from "zod/v4";
@@ -51,7 +50,7 @@ export const MakeCoinflipBetPlugin = makeExtendSchemaPlugin(() => {
     `,
     resolvers: {
       Mutation: {
-        async makeCoinflipBet(_query, args, context: PluginContext) {
+        async makeCoinflipBet(_query, args, context: Grafast.Context) {
           const { identity } = context;
           const { input: rawInput } = args;
 

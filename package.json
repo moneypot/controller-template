@@ -10,7 +10,7 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "@moneypot/hub": "^1.4.9",
+    "@moneypot/hub": "^1.5.1",
     "dotenv": "16",
     "graphql": "16",
     "zod": "^3.24.2"
@@ -18,7 +18,7 @@
   "devDependencies": {
     "@eslint/js": "^9.21.0",
     "@graphql-codegen/cli": "^5.0.5",
-    "@types/node": "22",
+    "@types/node": "24",
     "eslint": "^9.21.0",
     "globals": "^16.0.0",
     "tsx": "^4.19.3",
