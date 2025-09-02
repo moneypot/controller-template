@@ -4,6 +4,8 @@ This repo is intended to be a copy-and-pasteable starting point for starting a c
 
 See [moneypot/experience-react-template](https://github.com/moneypot/experience-react-template) for an experience template.
 
+Note: This repo includes a full example of how you might implement a custom game by demonstrating a trivial coin flip game. However, if you really did want to implement a coin flip game, since it has finite outcomes you would want to use hub's generic bet system: https://docs.moneypot.com/docs/controller-dev/outcome-bet/
+
 ## Usage
 
 - Rename `.env.template` to `.env` and customize it. (esp change the database urls)
