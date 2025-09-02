@@ -2,7 +2,6 @@ import { gql, makeExtendSchemaPlugin } from "@moneypot/hub/graphile";
 import { GraphQLError } from "@moneypot/hub/graphql";
 import {
   dbLockPlayerBalanceAndHouseBankroll,
-  superuserPool,
   withPgPoolTransaction,
   type DbCurrency,
 } from "@moneypot/hub/db";
@@ -10,7 +9,7 @@ import { exactlyOneRow, maybeOneRow } from "@moneypot/hub/db/util";
 import * as crypto from "crypto";
 import { CoinSide } from "../__generated__/graphql.ts";
 import type { DbCoinflipBet } from "../dbtypes.ts";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 // Example hub plugin that defines a coinflip game that uses
 // tables defined in 002-coinflip.sql.
@@ -51,7 +50,7 @@ export const MakeCoinflipBetPlugin = makeExtendSchemaPlugin(() => {
     resolvers: {
       Mutation: {
         async makeCoinflipBet(_query, args, context: Grafast.Context) {
-          const { identity } = context;
+          const { identity, superuserPool } = context;
           const { input: rawInput } = args;
 
           if (identity?.kind !== "user") {
