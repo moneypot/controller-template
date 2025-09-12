@@ -14,8 +14,12 @@ import { z } from "zod";
 // Example hub plugin that defines a coinflip game that uses
 // tables defined in 002-coinflip.sql.
 //
-// In a real game, you'd want to use hub's provably fair hash-chain system,
-// but this is just a hello-world example.
+// If you really wanted to implement a simple finite-outcome game like this,
+// you would use hub's builtin hubMakeOutcomeBet system which gives you various
+// benefits like provably fair and avoiding common bugs.
+//
+// but this is just a hello-world example to give you an idea of how you
+// might implement your own more complex game.
 
 const HOUSE_EDGE = 0.01; // 1% house edge
 
