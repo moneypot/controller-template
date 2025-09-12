@@ -29,6 +29,6 @@ const options: ServerOptions = {
   userDatabaseMigrationsPath,
 };
 
-startAndListen(options).then(() => {
-  logger.info("hub server listening");
+startAndListen(options).then(({ port }) => {
+  logger.info({ port }, "hub server listening");
 });
