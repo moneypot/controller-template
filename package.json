@@ -10,7 +10,7 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "@moneypot/hub": "^1.5.1",
+    "@moneypot/hub": "^1.17.0",
     "dotenv": "16",
     "graphql": "16",
     "zod": "^4.1.5"

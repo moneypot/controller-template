@@ -8,95 +8,6 @@ strings and not numbers.
 """
 scalar BigInt
 
-enum CoinSide {
-  HEADS
-  TAILS
-}
-
-type CoinflipBet {
-  casinoId: UUID!
-  currencyKey: String!
-  experienceId: UUID!
-
-  """Reads a single `HubCasino` that is related to this `CoinflipBet`."""
-  hubCasinoByCasinoId: HubCasino
-
-  """Reads a single `HubCurrency` that is related to this `CoinflipBet`."""
-  hubCurrencyByCurrencyKeyAndCasinoId: HubCurrency
-
-  """Reads a single `HubExperience` that is related to this `CoinflipBet`."""
-  hubExperienceByExperienceId: HubExperience
-
-  """Reads a single `HubUser` that is related to this `CoinflipBet`."""
-  hubUserByUserId: HubUser
-  id: UUID!
-  multiplier: Float!
-  net: Float!
-  outcome: CoinSide!
-  target: CoinSide!
-  userId: UUID!
-  wager: Int!
-}
-
-"""
-A condition to be used against `CoinflipBet` object types. All fields are tested
-for equality and combined with a logical ‘and.’
-"""
-input CoinflipBetCondition {
-  """Checks for equality with the object’s `casinoId` field."""
-  casinoId: UUID
-
-  """Checks for equality with the object’s `experienceId` field."""
-  experienceId: UUID
-
-  """Checks for equality with the object’s `id` field."""
-  id: UUID
-
-  """Checks for equality with the object’s `userId` field."""
-  userId: UUID
-}
-
-"""A connection to a list of `CoinflipBet` values."""
-type CoinflipBetConnection {
-  """
-  A list of edges which contains the `CoinflipBet` and cursor to aid in pagination.
-  """
-  edges: [CoinflipBetEdge]!
-
-  """A list of `CoinflipBet` objects."""
-  nodes: [CoinflipBet]!
-
-  """Information to aid in pagination."""
-  pageInfo: PageInfo!
-
-  """The count of *all* `CoinflipBet` you could get from the connection."""
-  totalCount: Int!
-}
-
-"""A `CoinflipBet` edge in the connection."""
-type CoinflipBetEdge {
-  """A cursor for use in pagination."""
-  cursor: Cursor
-
-  """The `CoinflipBet` at the end of the edge."""
-  node: CoinflipBet
-}
-
-"""Methods to use when ordering `CoinflipBet`."""
-enum CoinflipBetOrderBy {
-  CASINO_ID_ASC
-  CASINO_ID_DESC
-  EXPERIENCE_ID_ASC
-  EXPERIENCE_ID_DESC
-  ID_ASC
-  ID_DESC
-  NATURAL
-  PRIMARY_KEY_ASC
-  PRIMARY_KEY_DESC
-  USER_ID_ASC
-  USER_ID_DESC
-}
-
 """A location in a connection that can be used for resuming pagination."""
 scalar Cursor
 
@@ -194,6 +105,10 @@ type HubAuthenticateSuccess {
   userId: UUID!
 }
 
+type HubBadHashChainError {
+  message: String
+}
+
 type HubBalance {
   amount: Float!
   casinoId: UUID!
@@ -226,6 +141,9 @@ for equality and combined with a logical ‘and.’
 input HubBalanceCondition {
   """Checks for equality with the object’s `casinoId` field."""
   casinoId: UUID
+
+  """Checks for equality with the object’s `currencyKey` field."""
+  currencyKey: String
 
   """Checks for equality with the object’s `experienceId` field."""
   experienceId: UUID
@@ -267,6 +185,8 @@ type HubBalanceEdge {
 enum HubBalanceOrderBy {
   CASINO_ID_ASC
   CASINO_ID_DESC
+  CURRENCY_KEY_ASC
+  CURRENCY_KEY_DESC
   EXPERIENCE_ID_ASC
   EXPERIENCE_ID_DESC
   ID_ASC
@@ -302,6 +222,9 @@ input HubBankrollCondition {
   """Checks for equality with the object’s `casinoId` field."""
   casinoId: UUID
 
+  """Checks for equality with the object’s `currencyKey` field."""
+  currencyKey: String
+
   """Checks for equality with the object’s `id` field."""
   id: UUID
 }
@@ -336,6 +259,8 @@ type HubBankrollEdge {
 enum HubBankrollOrderBy {
   CASINO_ID_ASC
   CASINO_ID_DESC
+  CURRENCY_KEY_ASC
+  CURRENCY_KEY_DESC
   ID_ASC
   ID_DESC
   NATURAL
@@ -358,35 +283,6 @@ input HubBankrollPatch {
 
 type HubCasino {
   baseUrl: String!
-
-  """Reads and enables pagination through a set of `CoinflipBet`."""
-  coinflipBetsByCasinoId(
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: CoinflipBetCondition
-
-    """Only read the first `n` values of the set."""
-    first: Int
-
-    """Only read the last `n` values of the set."""
-    last: Int
-
-    """
-    Skip the first `n` values from our `after` cursor, an alternative to cursor
-    based pagination. May not be used with `last`.
-    """
-    offset: Int
-
-    """The method to use when ordering `CoinflipBet`."""
-    orderBy: [CoinflipBetOrderBy!] = [PRIMARY_KEY_ASC]
-  ): CoinflipBetConnection!
   graphqlUrl: String!
 
   """Reads and enables pagination through a set of `HubBalance`."""
@@ -449,6 +345,93 @@ type HubCasino {
 
   """Reads a single `HubCasinoSecret` that is related to this `HubCasino`."""
   hubCasinoSecretById: HubCasinoSecret
+
+  """Reads and enables pagination through a set of `HubChatMessage`."""
+  hubChatMessagesByCasinoId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: HubChatMessageCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `HubChatMessage`."""
+    orderBy: [HubChatMessageOrderBy!] = [PRIMARY_KEY_ASC]
+  ): HubChatMessageConnection!
+
+  """Reads and enables pagination through a set of `HubChatMod`."""
+  hubChatModsByCasinoId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: HubChatModCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `HubChatMod`."""
+    orderBy: [HubChatModOrderBy!] = [PRIMARY_KEY_ASC]
+  ): HubChatModConnection!
+
+  """Reads and enables pagination through a set of `HubChatMute`."""
+  hubChatMutesByCasinoId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: HubChatMuteCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `HubChatMute`."""
+    orderBy: [HubChatMuteOrderBy!] = [PRIMARY_KEY_ASC]
+  ): HubChatMuteConnection!
 
   """Reads and enables pagination through a set of `HubCurrency`."""
   hubCurrenciesByCasinoId(
@@ -801,6 +784,7 @@ type HubCasino {
     orderBy: [HubWithdrawalOrderBy!] = [PRIMARY_KEY_ASC]
   ): HubWithdrawalConnection!
   id: UUID!
+  isPlayground: Boolean!
   name: String!
 }
 
@@ -876,14 +860,373 @@ type HubCasinoSecret {
   id: UUID!
 }
 
+input HubChatAddModInput {
+  experienceId: UUID!
+  userId: UUID!
+}
+
+type HubChatAddModPayload {
+  chatMod: HubChatMod!
+}
+
+input HubChatCreateSystemMessageInput {
+  body: String!
+  clientId: UUID!
+  experienceId: UUID!
+}
+
+type HubChatCreateSystemMessagePayload {
+  chatMessage: HubChatMessage!
+}
+
+input HubChatCreateUserMessageInput {
+  body: String!
+  clientId: UUID!
+}
+
+type HubChatCreateUserMessagePayload {
+  result: HubChatCreateUserMessageResult!
+}
+
+union HubChatCreateUserMessageResult = HubChatCreateUserMessageSuccess | HubChatUserMuted | HubChatUserRateLimited
+
+type HubChatCreateUserMessageSuccess {
+  chatMessage: HubChatMessage!
+}
+
+type HubChatMessage {
+  body: String!
+  casinoId: UUID!
+  clientId: UUID!
+  experienceId: UUID!
+  hiddenAt: Datetime
+
+  """Reads a single `HubCasino` that is related to this `HubChatMessage`."""
+  hubCasinoByCasinoId: HubCasino
+
+  """
+  Reads a single `HubExperience` that is related to this `HubChatMessage`.
+  """
+  hubExperienceByExperienceId: HubExperience
+
+  """Reads a single `HubUser` that is related to this `HubChatMessage`."""
+  hubUserByUserId: HubUser
+  id: UUID!
+  type: HubChatMessageType!
+  userId: UUID
+}
+
+"""
+A condition to be used against `HubChatMessage` object types. All fields are
+tested for equality and combined with a logical ‘and.’
+"""
+input HubChatMessageCondition {
+  """Get chat messages after a given ID"""
+  afterId: UUID
+
+  """Checks for equality with the object’s `casinoId` field."""
+  casinoId: UUID
+
+  """Checks for equality with the object’s `experienceId` field."""
+  experienceId: UUID
+
+  """Checks for equality with the object’s `id` field."""
+  id: UUID
+
+  """Checks for equality with the object’s `userId` field."""
+  userId: UUID
+}
+
+"""A connection to a list of `HubChatMessage` values."""
+type HubChatMessageConnection {
+  """
+  A list of edges which contains the `HubChatMessage` and cursor to aid in pagination.
+  """
+  edges: [HubChatMessageEdge]!
+
+  """A list of `HubChatMessage` objects."""
+  nodes: [HubChatMessage]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `HubChatMessage` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `HubChatMessage` edge in the connection."""
+type HubChatMessageEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `HubChatMessage` at the end of the edge."""
+  node: HubChatMessage
+}
+
+"""Methods to use when ordering `HubChatMessage`."""
+enum HubChatMessageOrderBy {
+  CASINO_ID_ASC
+  CASINO_ID_DESC
+  EXPERIENCE_ID_ASC
+  EXPERIENCE_ID_DESC
+  ID_ASC
+  ID_DESC
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  USER_ID_ASC
+  USER_ID_DESC
+}
+
+enum HubChatMessageType {
+  system
+  user
+}
+
+type HubChatMod {
+  casinoId: UUID!
+  experienceId: UUID!
+
+  """Reads a single `HubCasino` that is related to this `HubChatMod`."""
+  hubCasinoByCasinoId: HubCasino
+
+  """Reads a single `HubExperience` that is related to this `HubChatMod`."""
+  hubExperienceByExperienceId: HubExperience
+
+  """Reads a single `HubUser` that is related to this `HubChatMod`."""
+  hubUserByUserId: HubUser
+  id: UUID!
+  userId: UUID!
+}
+
+"""
+A condition to be used against `HubChatMod` object types. All fields are tested
+for equality and combined with a logical ‘and.’
+"""
+input HubChatModCondition {
+  """Checks for equality with the object’s `casinoId` field."""
+  casinoId: UUID
+
+  """Checks for equality with the object’s `experienceId` field."""
+  experienceId: UUID
+
+  """Checks for equality with the object’s `id` field."""
+  id: UUID
+
+  """Checks for equality with the object’s `userId` field."""
+  userId: UUID
+}
+
+"""A connection to a list of `HubChatMod` values."""
+type HubChatModConnection {
+  """
+  A list of edges which contains the `HubChatMod` and cursor to aid in pagination.
+  """
+  edges: [HubChatModEdge]!
+
+  """A list of `HubChatMod` objects."""
+  nodes: [HubChatMod]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `HubChatMod` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `HubChatMod` edge in the connection."""
+type HubChatModEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `HubChatMod` at the end of the edge."""
+  node: HubChatMod
+}
+
+"""Methods to use when ordering `HubChatMod`."""
+enum HubChatModOrderBy {
+  CASINO_ID_ASC
+  CASINO_ID_DESC
+  EXPERIENCE_ID_ASC
+  EXPERIENCE_ID_DESC
+  ID_ASC
+  ID_DESC
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  USER_ID_ASC
+  USER_ID_DESC
+}
+
+type HubChatMute {
+  casinoId: UUID!
+  experienceId: UUID!
+  expiredAt: Datetime
+
+  """Reads a single `HubCasino` that is related to this `HubChatMute`."""
+  hubCasinoByCasinoId: HubCasino
+
+  """Reads a single `HubExperience` that is related to this `HubChatMute`."""
+  hubExperienceByExperienceId: HubExperience
+
+  """Reads a single `HubUser` that is related to this `HubChatMute`."""
+  hubUserByUserId: HubUser
+  id: UUID!
+  reason: String
+  revokedAt: Datetime
+  userId: UUID!
+}
+
+"""
+A condition to be used against `HubChatMute` object types. All fields are tested
+for equality and combined with a logical ‘and.’
+"""
+input HubChatMuteCondition {
+  """Checks for equality with the object’s `casinoId` field."""
+  casinoId: UUID
+
+  """Checks for equality with the object’s `experienceId` field."""
+  experienceId: UUID
+
+  """Checks for equality with the object’s `id` field."""
+  id: UUID
+
+  """Checks for equality with the object’s `userId` field."""
+  userId: UUID
+}
+
+"""A connection to a list of `HubChatMute` values."""
+type HubChatMuteConnection {
+  """
+  A list of edges which contains the `HubChatMute` and cursor to aid in pagination.
+  """
+  edges: [HubChatMuteEdge]!
+
+  """A list of `HubChatMute` objects."""
+  nodes: [HubChatMute]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `HubChatMute` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `HubChatMute` edge in the connection."""
+type HubChatMuteEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `HubChatMute` at the end of the edge."""
+  node: HubChatMute
+}
+
+"""Methods to use when ordering `HubChatMute`."""
+enum HubChatMuteOrderBy {
+  CASINO_ID_ASC
+  CASINO_ID_DESC
+  EXPERIENCE_ID_ASC
+  EXPERIENCE_ID_DESC
+  ID_ASC
+  ID_DESC
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  USER_ID_ASC
+  USER_ID_DESC
+}
+
+input HubChatMuteUserInput {
+  expiredAt: Datetime
+  reason: String
+  userId: UUID!
+}
+
+type HubChatMuteUserPayload {
+  chatMute: HubChatMute!
+}
+
+input HubChatRemoveModInput {
+  experienceId: UUID!
+  userId: UUID!
+}
+
+type HubChatRemoveModPayload {
+  _: Boolean
+}
+
+type HubChatSubscriptionMuted {
+  _: Boolean
+}
+
+type HubChatSubscriptionNewMessage {
+  chatMessage: HubChatMessage!
+}
+
+union HubChatSubscriptionPayload = HubChatSubscriptionMuted | HubChatSubscriptionNewMessage | HubChatSubscriptionUnmuted
+
+type HubChatSubscriptionUnmuted {
+  _: Boolean
+}
+
+input HubChatUnmuteUserInput {
+  userId: UUID!
+}
+
+type HubChatUnmuteUserPayload {
+  chatMute: HubChatMute!
+}
+
+type HubChatUserMuted {
+  message: String
+}
+
+type HubChatUserRateLimited {
+  message: String
+}
+
 type HubCreateHashChainPayload {
   hashChain: HubHashChain!
+}
+
+input HubCreatePlaygroundSessionInput {
+  experienceClientId: UUID
+  userClientId: UUID
 }
 
 type HubCurrency {
   casinoId: UUID!
   displayUnitName: String!
   displayUnitScale: Int!
+
+  """Reads and enables pagination through a set of `HubBalance`."""
+  hubBalancesByCurrencyKeyAndCasinoId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: HubBalanceCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `HubBalance`."""
+    orderBy: [HubBalanceOrderBy!] = [PRIMARY_KEY_ASC]
+  ): HubBalanceConnection!
 
   """Reads and enables pagination through a set of `HubBankroll`."""
   hubBankrollsByCurrencyKeyAndCasinoId(
@@ -1004,6 +1347,9 @@ input HubDepositCondition {
   """Checks for equality with the object’s `id` field."""
   id: UUID
 
+  """Checks for equality with the object’s `mpTransferId` field."""
+  mpTransferId: String
+
   """Checks for equality with the object’s `userId` field."""
   userId: UUID
 }
@@ -1042,6 +1388,8 @@ enum HubDepositOrderBy {
   EXPERIENCE_ID_DESC
   ID_ASC
   ID_DESC
+  MP_TRANSFER_ID_ASC
+  MP_TRANSFER_ID_DESC
   NATURAL
   PRIMARY_KEY_ASC
   PRIMARY_KEY_DESC
@@ -1051,35 +1399,7 @@ enum HubDepositOrderBy {
 
 type HubExperience {
   casinoId: UUID!
-
-  """Reads and enables pagination through a set of `CoinflipBet`."""
-  coinflipBetsByExperienceId(
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: CoinflipBetCondition
-
-    """Only read the first `n` values of the set."""
-    first: Int
-
-    """Only read the last `n` values of the set."""
-    last: Int
-
-    """
-    Skip the first `n` values from our `after` cursor, an alternative to cursor
-    based pagination. May not be used with `last`.
-    """
-    offset: Int
-
-    """The method to use when ordering `CoinflipBet`."""
-    orderBy: [CoinflipBetOrderBy!] = [PRIMARY_KEY_ASC]
-  ): CoinflipBetConnection!
+  clientId: UUID
 
   """Reads and enables pagination through a set of `HubBalance`."""
   hubBalancesByExperienceId(
@@ -1112,6 +1432,93 @@ type HubExperience {
 
   """Reads a single `HubCasino` that is related to this `HubExperience`."""
   hubCasinoByCasinoId: HubCasino
+
+  """Reads and enables pagination through a set of `HubChatMessage`."""
+  hubChatMessagesByExperienceId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: HubChatMessageCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `HubChatMessage`."""
+    orderBy: [HubChatMessageOrderBy!] = [PRIMARY_KEY_ASC]
+  ): HubChatMessageConnection!
+
+  """Reads and enables pagination through a set of `HubChatMod`."""
+  hubChatModsByExperienceId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: HubChatModCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `HubChatMod`."""
+    orderBy: [HubChatModOrderBy!] = [PRIMARY_KEY_ASC]
+  ): HubChatModConnection!
+
+  """Reads and enables pagination through a set of `HubChatMute`."""
+  hubChatMutesByExperienceId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: HubChatMuteCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `HubChatMute`."""
+    orderBy: [HubChatMuteOrderBy!] = [PRIMARY_KEY_ASC]
+  ): HubChatMuteConnection!
 
   """Reads and enables pagination through a set of `HubDeposit`."""
   hubDepositsByExperienceId(
@@ -1287,6 +1694,9 @@ type HubExperience {
     orderBy: [HubTakeRequestOrderBy!] = [PRIMARY_KEY_ASC]
   ): HubTakeRequestConnection!
 
+  """Reads a single `HubUser` that is related to this `HubExperience`."""
+  hubUserByUserId: HubUser
+
   """Reads and enables pagination through a set of `HubWithdrawalRequest`."""
   hubWithdrawalRequestsByExperienceId(
     """Read all values in the set after (below) this cursor."""
@@ -1347,6 +1757,7 @@ type HubExperience {
   id: UUID!
   mpExperienceId: UUID!
   name: String!
+  userId: UUID
 }
 
 """
@@ -1649,6 +2060,9 @@ input HubHashCondition {
 
   """Checks for equality with the object’s `id` field."""
   id: UUID
+
+  """Checks for equality with the object’s `iteration` field."""
+  iteration: Int
 }
 
 """A connection to a list of `HubHash` values."""
@@ -1689,6 +2103,8 @@ enum HubHashOrderBy {
   HASH_CHAIN_ID_DESC
   ID_ASC
   ID_DESC
+  ITERATION_ASC
+  ITERATION_DESC
   NATURAL
   PRIMARY_KEY_ASC
   PRIMARY_KEY_DESC
@@ -2111,35 +2527,7 @@ enum HubTransferStatusKind {
 type HubUser {
   activeHashChain: HubHashChain
   casinoId: UUID!
-
-  """Reads and enables pagination through a set of `CoinflipBet`."""
-  coinflipBetsByUserId(
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: CoinflipBetCondition
-
-    """Only read the first `n` values of the set."""
-    first: Int
-
-    """Only read the last `n` values of the set."""
-    last: Int
-
-    """
-    Skip the first `n` values from our `after` cursor, an alternative to cursor
-    based pagination. May not be used with `last`.
-    """
-    offset: Int
-
-    """The method to use when ordering `CoinflipBet`."""
-    orderBy: [CoinflipBetOrderBy!] = [PRIMARY_KEY_ASC]
-  ): CoinflipBetConnection!
+  clientId: UUID
   hubBalanceByCurrency(currency: String!): HubBalance
 
   """Reads and enables pagination through a set of `HubBalance`."""
@@ -2173,6 +2561,93 @@ type HubUser {
 
   """Reads a single `HubCasino` that is related to this `HubUser`."""
   hubCasinoByCasinoId: HubCasino
+
+  """Reads and enables pagination through a set of `HubChatMessage`."""
+  hubChatMessagesByUserId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: HubChatMessageCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `HubChatMessage`."""
+    orderBy: [HubChatMessageOrderBy!] = [PRIMARY_KEY_ASC]
+  ): HubChatMessageConnection!
+
+  """Reads and enables pagination through a set of `HubChatMod`."""
+  hubChatModsByUserId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: HubChatModCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `HubChatMod`."""
+    orderBy: [HubChatModOrderBy!] = [PRIMARY_KEY_ASC]
+  ): HubChatModConnection!
+
+  """Reads and enables pagination through a set of `HubChatMute`."""
+  hubChatMutesByUserId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: HubChatMuteCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `HubChatMute`."""
+    orderBy: [HubChatMuteOrderBy!] = [PRIMARY_KEY_ASC]
+  ): HubChatMuteConnection!
 
   """Reads and enables pagination through a set of `HubDeposit`."""
   hubDepositsByUserId(
@@ -2419,6 +2894,9 @@ input HubUserCondition {
 
   """Checks for equality with the object’s `id` field."""
   id: UUID
+
+  """Checks for equality with the object’s `mpUserId` field."""
+  mpUserId: UUID
 }
 
 """A connection to a list of `HubUser` values."""
@@ -2453,6 +2931,8 @@ enum HubUserOrderBy {
   CASINO_ID_DESC
   ID_ASC
   ID_DESC
+  MP_USER_ID_ASC
+  MP_USER_ID_DESC
   NATURAL
   PRIMARY_KEY_ASC
   PRIMARY_KEY_DESC
@@ -2504,6 +2984,9 @@ input HubWithdrawalCondition {
   """Checks for equality with the object’s `id` field."""
   id: UUID
 
+  """Checks for equality with the object’s `mpTransferId` field."""
+  mpTransferId: String
+
   """Checks for equality with the object’s `userId` field."""
   userId: UUID
 
@@ -2545,6 +3028,8 @@ enum HubWithdrawalOrderBy {
   EXPERIENCE_ID_DESC
   ID_ASC
   ID_DESC
+  MP_TRANSFER_ID_ASC
+  MP_TRANSFER_ID_DESC
   NATURAL
   PRIMARY_KEY_ASC
   PRIMARY_KEY_DESC
@@ -2695,7 +3180,49 @@ type Mutation {
     """
     input: HubAuthenticateInput!
   ): HubAuthenticatePayload
+  hubChatAddMod(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: HubChatAddModInput!
+  ): HubChatAddModPayload
+  hubChatCreateSystemMessage(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: HubChatCreateSystemMessageInput!
+  ): HubChatCreateSystemMessagePayload
+  hubChatCreateUserMessage(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: HubChatCreateUserMessageInput!
+  ): HubChatCreateUserMessagePayload
+  hubChatMuteUser(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: HubChatMuteUserInput!
+  ): HubChatMuteUserPayload
+  hubChatRemoveMod(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: HubChatRemoveModInput!
+  ): HubChatRemoveModPayload
+  hubChatUnmuteUser(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: HubChatUnmuteUserInput!
+  ): HubChatUnmuteUserPayload
   hubCreateHashChain: HubCreateHashChainPayload!
+  hubCreatePlaygroundSession(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: HubCreatePlaygroundSessionInput!
+  ): HubAuthenticatePayload
   hubRevealHashChain(
     """
     The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
@@ -2795,9 +3322,6 @@ type Query {
     orderBy: [HubCasinoOrderBy!] = [PRIMARY_KEY_ASC]
   ): HubCasinoConnection
 
-  """Get a single `CoinflipBet`."""
-  coinflipBetById(id: UUID!): CoinflipBet
-
   """Get a single `HubApiKey`."""
   hubApiKeyById(id: UUID!): HubApiKey
 
@@ -2815,6 +3339,15 @@ type Query {
 
   """Get a single `HubCasinoSecret`."""
   hubCasinoSecretById(id: UUID!): HubCasinoSecret
+
+  """Get a single `HubChatMessage`."""
+  hubChatMessageById(id: UUID!): HubChatMessage
+
+  """Get a single `HubChatMod`."""
+  hubChatModById(id: UUID!): HubChatMod
+
+  """Get a single `HubChatMute`."""
+  hubChatMuteById(id: UUID!): HubChatMute
 
   """Get a single `HubCurrency`."""
   hubCurrencyByKeyAndCasinoId(casinoId: UUID!, key: String!): HubCurrency
@@ -2877,6 +3410,7 @@ The root subscription type: contains realtime events you can subscribe to with t
 """
 type Subscription {
   hubBalanceAlert: HubBalanceAlertPayload
+  hubChatAlert: HubChatSubscriptionPayload
   hubPutAlert: HubPutAlertPayload
 }
 
