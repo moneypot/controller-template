@@ -1,7 +1,8 @@
 import { gql, makeExtendSchemaPlugin } from "@moneypot/hub/graphile";
 import { GraphQLError } from "@moneypot/hub/graphql";
 import {
-  dbLockPlayerBalanceAndHouseBankroll,
+  dbLockPlayerBalance,
+  dbLockHouseBankroll,
   withPgPoolTransaction,
   type DbCurrency,
 } from "@moneypot/hub/db";
@@ -90,31 +91,24 @@ export const MakeCoinflipBetPlugin = makeExtendSchemaPlugin(() => {
           }
 
           return withPgPoolTransaction(superuserPool, async (pgClient) => {
-            // Lock the user balance and house bankroll so they can't be updated
-            // during this transaction. Always lock these before you update them.
-            const { found, dbPlayerBalance, dbHouseBankroll } =
-              await dbLockPlayerBalanceAndHouseBankroll(pgClient, {
-                userId: session.user_id,
-                casinoId: session.casino_id,
-                experienceId: session.experience_id,
-                currencyKey: dbCurrency.key,
-              });
+            // Lock the user balance for the transaction
+            const dbLockedPlayerBalance = await dbLockPlayerBalance(pgClient, {
+              userId: session.user_id,
+              casinoId: session.casino_id,
+              experienceId: session.experience_id,
+              currencyKey: dbCurrency.key,
+            });
 
-            if (!found) {
-              throw new GraphQLError("Balance or bankroll not found");
-            }
-
-            if (dbPlayerBalance.amount < input.wager) {
+            if (
+              !dbLockedPlayerBalance ||
+              dbLockedPlayerBalance.amount < input.wager
+            ) {
               throw new GraphQLError("Player cannot afford wager");
             }
 
             // Ensure house can afford the max payout
             const multiplier = (1 - HOUSE_EDGE) * 2; // e.g. 1.98x if house edge is 1%
             const maxPayout = input.wager * multiplier;
-
-            if (dbHouseBankroll.amount < maxPayout) {
-              throw new GraphQLError("House cannot afford payout");
-            }
 
             // Generate a random coin flip
             const result =
@@ -130,20 +124,7 @@ export const MakeCoinflipBetPlugin = makeExtendSchemaPlugin(() => {
               SET amount = amount + $2
               WHERE id = $1
               `,
-              [dbPlayerBalance.id, net]
-            );
-
-            // Update bankroll amount + stats
-            await pgClient.query(
-              `
-              UPDATE hub.bankroll
-              SET amount = amount - $2,
-                  wagered = wagered + $3,
-                  expected_value = expected_value + $4,
-                  bets = bets + 1
-              WHERE id = $1
-              `,
-              [dbHouseBankroll.id, net, input.wager, input.wager * HOUSE_EDGE]
+              [dbLockedPlayerBalance.id, net]
             );
 
             const bet = await pgClient
@@ -166,6 +147,39 @@ export const MakeCoinflipBetPlugin = makeExtendSchemaPlugin(() => {
                 ]
               )
               .then(exactlyOneRow);
+
+            // Lock the house bankroll after all other work is done to
+            // minimize lock contention and hold the lock for the shortest
+            // time possible
+            const dbLockedHouseBankroll = await dbLockHouseBankroll(pgClient, {
+              casinoId: session.casino_id,
+              currencyKey: dbCurrency.key,
+            });
+
+            if (
+              !dbLockedHouseBankroll ||
+              dbLockedHouseBankroll.amount < maxPayout
+            ) {
+              throw new GraphQLError("House cannot afford payout");
+            }
+
+            // Update bankroll amount + stats
+            await pgClient.query(
+              `
+              UPDATE hub.bankroll
+              SET amount = amount - $2,
+                  wagered = wagered + $3,
+                  expected_value = expected_value + $4,
+                  bets = bets + 1
+              WHERE id = $1
+              `,
+              [
+                dbLockedHouseBankroll.id,
+                net,
+                input.wager,
+                input.wager * HOUSE_EDGE,
+              ]
+            );
 
             return {
               id: bet.id,
