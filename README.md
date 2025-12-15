@@ -13,7 +13,7 @@ Note: This repo includes a full example of how you might implement a custom game
 ## Codegen graphql types
 
 ```bash
-npm run codegen
+pnpm codegen
 ```
 
 This will generate the `src/__generated__/graphql.ts` file from the schema.graphql file that hub generates every time it launches.
