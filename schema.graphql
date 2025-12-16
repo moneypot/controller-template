@@ -3614,7 +3614,7 @@ type StartTowerGamePayload {
   result: StartTowerGameResult!
 }
 
-union StartTowerGameResult = StartTowerGameSuccess | TowerRiskError
+union StartTowerGameResult = HubRiskError | StartTowerGameSuccess
 
 type StartTowerGameSuccess {
   game: TowerGame!
@@ -3718,11 +3718,6 @@ enum TowerGameStatus {
   ACTIVE
   BUST
   CASHOUT
-}
-
-type TowerRiskError {
-  maxPayout: Float!
-  message: String!
 }
 
 """

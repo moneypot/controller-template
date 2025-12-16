@@ -36,6 +36,44 @@ export type Scalars = {
   UUID: { input: string; output: string; }
 };
 
+export const AnyGameKind = {
+  General: 'GENERAL',
+  Tower: 'TOWER'
+} as const;
+
+export type AnyGameKind = typeof AnyGameKind[keyof typeof AnyGameKind];
+export type CashoutTowerInput = {
+  gameId: Scalars['UUID']['input'];
+};
+
+export type CashoutTowerPayload = {
+  __typename?: 'CashoutTowerPayload';
+  game: TowerGame;
+  payout: Scalars['BigInt']['output'];
+};
+
+export type ClimbTowerInput = {
+  clientSeed: Scalars['String']['input'];
+  door: Scalars['Int']['input'];
+  gameId: Scalars['UUID']['input'];
+};
+
+export type ClimbTowerPayload = {
+  __typename?: 'ClimbTowerPayload';
+  /** Present when player reaches MAX_FLOOR and is auto-cashed out */
+  autoCashout?: Maybe<Scalars['Boolean']['output']>;
+  game: TowerGame;
+  /** Payout amount (only present on auto-cashout) */
+  payout?: Maybe<Scalars['BigInt']['output']>;
+  safe: Scalars['Boolean']['output'];
+  safeDoor: Scalars['Int']['output'];
+};
+
+export const CustomGameKind = {
+  Tower: 'TOWER'
+} as const;
+
+export type CustomGameKind = typeof CustomGameKind[keyof typeof CustomGameKind];
 export type HubAddCasinoInput = {
   apiKey: Scalars['String']['input'];
   baseUrl: Scalars['String']['input'];
@@ -123,7 +161,7 @@ export type HubAuthenticateSuccess = {
 
 export type HubBadHashChainError = {
   __typename?: 'HubBadHashChainError';
-  message?: Maybe<Scalars['String']['output']>;
+  message: Scalars['String']['output'];
 };
 
 export type HubBalance = {
@@ -281,6 +319,13 @@ export type HubBankrollPatch = {
   wagered?: InputMaybe<Scalars['Float']['input']>;
 };
 
+export type HubBulkRiskLimit = {
+  __typename?: 'HubBulkRiskLimit';
+  currency: Scalars['String']['output'];
+  gameKind: AnyGameKind;
+  maxPayout: Scalars['Float']['output'];
+};
+
 export type HubCasino = {
   __typename?: 'HubCasino';
   baseUrl: Scalars['String']['output'];
@@ -326,6 +371,8 @@ export type HubCasino = {
   id: Scalars['UUID']['output'];
   isPlayground: Scalars['Boolean']['output'];
   name: Scalars['String']['output'];
+  /** Reads and enables pagination through a set of `TowerGame`. */
+  towerGamesByCasinoId: TowerGameConnection;
 };
 
 
@@ -513,6 +560,17 @@ export type HubCasinoHubWithdrawalsByCasinoIdArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   orderBy?: InputMaybe<Array<HubWithdrawalOrderBy>>;
+};
+
+
+export type HubCasinoTowerGamesByCasinoIdArgs = {
+  after?: InputMaybe<Scalars['Cursor']['input']>;
+  before?: InputMaybe<Scalars['Cursor']['input']>;
+  condition?: InputMaybe<TowerGameCondition>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<Array<TowerGameOrderBy>>;
 };
 
 /**
@@ -1093,6 +1151,8 @@ export type HubExperience = {
   id: Scalars['UUID']['output'];
   mpExperienceId: Scalars['UUID']['output'];
   name: Scalars['String']['output'];
+  /** Reads and enables pagination through a set of `TowerGame`. */
+  towerGamesByExperienceId: TowerGameConnection;
   userId?: Maybe<Scalars['UUID']['output']>;
 };
 
@@ -1226,6 +1286,17 @@ export type HubExperienceHubWithdrawalsByExperienceIdArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   orderBy?: InputMaybe<Array<HubWithdrawalOrderBy>>;
+};
+
+
+export type HubExperienceTowerGamesByExperienceIdArgs = {
+  after?: InputMaybe<Scalars['Cursor']['input']>;
+  before?: InputMaybe<Scalars['Cursor']['input']>;
+  condition?: InputMaybe<TowerGameCondition>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<Array<TowerGameOrderBy>>;
 };
 
 /**
@@ -1578,6 +1649,28 @@ export const HubJwkSetSnapshotOrderBy = {
 } as const;
 
 export type HubJwkSetSnapshotOrderBy = typeof HubJwkSetSnapshotOrderBy[keyof typeof HubJwkSetSnapshotOrderBy];
+export type HubMakeOutcomeBetInput = {
+  clientSeed: Scalars['String']['input'];
+  currency: Scalars['String']['input'];
+  hashChainId: Scalars['UUID']['input'];
+  kind: OutcomeBetKind;
+  metadata?: InputMaybe<Scalars['JSON']['input']>;
+  outcomes: Array<HubOutcomeInput>;
+  wager: Scalars['Int']['input'];
+};
+
+export type HubMakeOutcomeBetPayload = {
+  __typename?: 'HubMakeOutcomeBetPayload';
+  result: HubMakeOutcomeBetResult;
+};
+
+export type HubMakeOutcomeBetResult = HubBadHashChainError | HubMakeOutcomeBetSuccess | HubRiskError;
+
+export type HubMakeOutcomeBetSuccess = {
+  __typename?: 'HubMakeOutcomeBetSuccess';
+  bet: HubOutcomeBet;
+};
+
 export const HubMpTakeRequestStatus = {
   ControllerRejected: 'CONTROLLER_REJECTED',
   Pending: 'PENDING',
@@ -1688,6 +1781,12 @@ export const HubOutcomeBetOrderBy = {
 } as const;
 
 export type HubOutcomeBetOrderBy = typeof HubOutcomeBetOrderBy[keyof typeof HubOutcomeBetOrderBy];
+/** An input for mutations affecting `HubOutcome` */
+export type HubOutcomeInput = {
+  profit: Scalars['Float']['input'];
+  weight: Scalars['Float']['input'];
+};
+
 export type HubPutAlertPayload = {
   __typename?: 'HubPutAlertPayload';
   currencyKey: Scalars['String']['output'];
@@ -1701,6 +1800,17 @@ export type HubRevealHashChainInput = {
 export type HubRevealHashChainPayload = {
   __typename?: 'HubRevealHashChainPayload';
   preimageHash: HubHash;
+};
+
+export type HubRiskError = {
+  __typename?: 'HubRiskError';
+  message: Scalars['String']['output'];
+  riskLimits: HubRiskLimit;
+};
+
+export type HubRiskLimit = {
+  __typename?: 'HubRiskLimit';
+  maxPayout: Scalars['Float']['output'];
 };
 
 export type HubSession = {
@@ -1804,6 +1914,8 @@ export type HubTakeRequest = {
   status: HubTakeRequestStatus;
   statusChangedAt: Scalars['Datetime']['output'];
   transferCompletionAttemptedAt?: Maybe<Scalars['Datetime']['output']>;
+  transferFailureCount?: Maybe<Scalars['Int']['output']>;
+  transferFirstFailureAt?: Maybe<Scalars['Datetime']['output']>;
   transferNeedsCompletion: Scalars['Boolean']['output'];
   updatedAt: Scalars['Datetime']['output'];
   userId: Scalars['UUID']['output'];
@@ -1924,6 +2036,8 @@ export type HubUser = {
   hubWithdrawalsByUserId: HubWithdrawalConnection;
   id: Scalars['UUID']['output'];
   mpUserId: Scalars['UUID']['output'];
+  /** Reads and enables pagination through a set of `TowerGame`. */
+  towerGamesByUserId: TowerGameConnection;
   uname: Scalars['String']['output'];
 };
 
@@ -2062,6 +2176,17 @@ export type HubUserHubWithdrawalsByUserIdArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   orderBy?: InputMaybe<Array<HubWithdrawalOrderBy>>;
+};
+
+
+export type HubUserTowerGamesByUserIdArgs = {
+  after?: InputMaybe<Scalars['Cursor']['input']>;
+  before?: InputMaybe<Scalars['Cursor']['input']>;
+  condition?: InputMaybe<TowerGameCondition>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<Array<TowerGameOrderBy>>;
 };
 
 /** A condition to be used against `HubUser` object types. All fields are tested for equality and combined with a logical ‘and.’ */
@@ -2283,6 +2408,8 @@ export type HubWithdrawalRequestOrderBy = typeof HubWithdrawalRequestOrderBy[key
 /** The root mutation type which contains root level fields which mutate data. */
 export type Mutation = {
   __typename?: 'Mutation';
+  cashoutTower: CashoutTowerPayload;
+  climbTower: ClimbTowerPayload;
   hubAddCasino?: Maybe<HubAddCasinoPayload>;
   hubAuthenticate?: Maybe<HubAuthenticatePayload>;
   hubChatAddMod?: Maybe<HubChatAddModPayload>;
@@ -2293,11 +2420,25 @@ export type Mutation = {
   hubChatUnmuteUser?: Maybe<HubChatUnmuteUserPayload>;
   hubCreateHashChain: HubCreateHashChainPayload;
   hubCreatePlaygroundSession?: Maybe<HubAuthenticatePayload>;
+  hubMakeOutcomeBet?: Maybe<HubMakeOutcomeBetPayload>;
   hubRevealHashChain: HubRevealHashChainPayload;
+  startTowerGame: StartTowerGamePayload;
   /** Updates a single `HubBankroll` using a unique key and a patch. */
   updateHubBankrollById?: Maybe<UpdateHubBankrollPayload>;
   /** Updates a single `HubCasino` using a unique key and a patch. */
   updateHubCasinoById?: Maybe<UpdateHubCasinoPayload>;
+};
+
+
+/** The root mutation type which contains root level fields which mutate data. */
+export type MutationCashoutTowerArgs = {
+  input: CashoutTowerInput;
+};
+
+
+/** The root mutation type which contains root level fields which mutate data. */
+export type MutationClimbTowerArgs = {
+  input: ClimbTowerInput;
 };
 
 
@@ -2356,8 +2497,20 @@ export type MutationHubCreatePlaygroundSessionArgs = {
 
 
 /** The root mutation type which contains root level fields which mutate data. */
+export type MutationHubMakeOutcomeBetArgs = {
+  input: HubMakeOutcomeBetInput;
+};
+
+
+/** The root mutation type which contains root level fields which mutate data. */
 export type MutationHubRevealHashChainArgs = {
   input: HubRevealHashChainInput;
+};
+
+
+/** The root mutation type which contains root level fields which mutate data. */
+export type MutationStartTowerGameArgs = {
+  input: StartTowerGameInput;
 };
 
 
@@ -2372,6 +2525,11 @@ export type MutationUpdateHubCasinoByIdArgs = {
   input: UpdateHubCasinoByIdInput;
 };
 
+export const OutcomeBetKind = {
+  General: 'GENERAL'
+} as const;
+
+export type OutcomeBetKind = typeof OutcomeBetKind[keyof typeof OutcomeBetKind];
 /** Information about pagination in a connection. */
 export type PageInfo = {
   __typename?: 'PageInfo';
@@ -2432,6 +2590,7 @@ export type Query = {
   hubJwkSetSnapshotById?: Maybe<HubJwkSetSnapshot>;
   /** Get a single `HubOutcomeBet`. */
   hubOutcomeBetById?: Maybe<HubOutcomeBet>;
+  hubRiskLimits: Array<HubBulkRiskLimit>;
   /** Get a single `HubSession`. */
   hubSessionById?: Maybe<HubSession>;
   /** Get a single `HubTakeRequest`. */
@@ -2449,6 +2608,8 @@ export type Query = {
    * which can only query top level fields if they are in a particular form.
    */
   query: Query;
+  /** Get a single `TowerGame`. */
+  towerGameById?: Maybe<TowerGame>;
 };
 
 
@@ -2586,6 +2747,12 @@ export type QueryHubOutcomeBetByIdArgs = {
 
 
 /** The root query type which gives access points into the data universe. */
+export type QueryHubRiskLimitsArgs = {
+  gameKinds: Array<AnyGameKind>;
+};
+
+
+/** The root query type which gives access points into the data universe. */
 export type QueryHubSessionByIdArgs = {
   id: Scalars['UUID']['input'];
 };
@@ -2620,6 +2787,32 @@ export type QueryHubWithdrawalRequestByIdArgs = {
   id: Scalars['UUID']['input'];
 };
 
+
+/** The root query type which gives access points into the data universe. */
+export type QueryTowerGameByIdArgs = {
+  id: Scalars['UUID']['input'];
+};
+
+export type StartTowerGameInput = {
+  clientSeed: Scalars['String']['input'];
+  currency: Scalars['String']['input'];
+  doors: Scalars['Int']['input'];
+  hashChainId: Scalars['UUID']['input'];
+  wager: Scalars['Int']['input'];
+};
+
+export type StartTowerGamePayload = {
+  __typename?: 'StartTowerGamePayload';
+  result: StartTowerGameResult;
+};
+
+export type StartTowerGameResult = HubRiskError | StartTowerGameSuccess;
+
+export type StartTowerGameSuccess = {
+  __typename?: 'StartTowerGameSuccess';
+  game: TowerGame;
+};
+
 /** The root subscription type: contains realtime events you can subscribe to with the `subscription` operation. */
 export type Subscription = {
   __typename?: 'Subscription';
@@ -2628,6 +2821,89 @@ export type Subscription = {
   hubPutAlert?: Maybe<HubPutAlertPayload>;
 };
 
+export type TowerGame = {
+  __typename?: 'TowerGame';
+  casinoId: Scalars['UUID']['output'];
+  createdAt: Scalars['Datetime']['output'];
+  currencyKey: Scalars['String']['output'];
+  currentLevel: Scalars['Int']['output'];
+  doors: Scalars['Int']['output'];
+  endedAt?: Maybe<Scalars['Datetime']['output']>;
+  experienceId: Scalars['UUID']['output'];
+  /** Reads a single `HubCasino` that is related to this `TowerGame`. */
+  hubCasinoByCasinoId?: Maybe<HubCasino>;
+  /** Reads a single `HubCurrency` that is related to this `TowerGame`. */
+  hubCurrencyByCurrencyKeyAndCasinoId?: Maybe<HubCurrency>;
+  /** Reads a single `HubExperience` that is related to this `TowerGame`. */
+  hubExperienceByExperienceId?: Maybe<HubExperience>;
+  /** Reads a single `HubUser` that is related to this `TowerGame`. */
+  hubUserByUserId?: Maybe<HubUser>;
+  id: Scalars['UUID']['output'];
+  status: TowerGameStatus;
+  userId: Scalars['UUID']['output'];
+  wager: Scalars['BigInt']['output'];
+};
+
+/**
+ * A condition to be used against `TowerGame` object types. All fields are tested
+ * for equality and combined with a logical ‘and.’
+ */
+export type TowerGameCondition = {
+  /** Checks for equality with the object’s `casinoId` field. */
+  casinoId?: InputMaybe<Scalars['UUID']['input']>;
+  /** Checks for equality with the object’s `experienceId` field. */
+  experienceId?: InputMaybe<Scalars['UUID']['input']>;
+  /** Checks for equality with the object’s `id` field. */
+  id?: InputMaybe<Scalars['UUID']['input']>;
+  /** Checks for equality with the object’s `userId` field. */
+  userId?: InputMaybe<Scalars['UUID']['input']>;
+};
+
+/** A connection to a list of `TowerGame` values. */
+export type TowerGameConnection = {
+  __typename?: 'TowerGameConnection';
+  /** A list of edges which contains the `TowerGame` and cursor to aid in pagination. */
+  edges: Array<Maybe<TowerGameEdge>>;
+  /** A list of `TowerGame` objects. */
+  nodes: Array<Maybe<TowerGame>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** The count of *all* `TowerGame` you could get from the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** A `TowerGame` edge in the connection. */
+export type TowerGameEdge = {
+  __typename?: 'TowerGameEdge';
+  /** A cursor for use in pagination. */
+  cursor?: Maybe<Scalars['Cursor']['output']>;
+  /** The `TowerGame` at the end of the edge. */
+  node?: Maybe<TowerGame>;
+};
+
+/** Methods to use when ordering `TowerGame`. */
+export const TowerGameOrderBy = {
+  CasinoIdAsc: 'CASINO_ID_ASC',
+  CasinoIdDesc: 'CASINO_ID_DESC',
+  ExperienceIdAsc: 'EXPERIENCE_ID_ASC',
+  ExperienceIdDesc: 'EXPERIENCE_ID_DESC',
+  IdAsc: 'ID_ASC',
+  IdDesc: 'ID_DESC',
+  Natural: 'NATURAL',
+  PrimaryKeyAsc: 'PRIMARY_KEY_ASC',
+  PrimaryKeyDesc: 'PRIMARY_KEY_DESC',
+  UserIdAsc: 'USER_ID_ASC',
+  UserIdDesc: 'USER_ID_DESC'
+} as const;
+
+export type TowerGameOrderBy = typeof TowerGameOrderBy[keyof typeof TowerGameOrderBy];
+export const TowerGameStatus = {
+  Active: 'ACTIVE',
+  Bust: 'BUST',
+  Cashout: 'CASHOUT'
+} as const;
+
+export type TowerGameStatus = typeof TowerGameStatus[keyof typeof TowerGameStatus];
 /** All input for the `updateHubBankrollById` mutation. */
 export type UpdateHubBankrollByIdInput = {
   /**

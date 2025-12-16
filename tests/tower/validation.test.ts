@@ -68,7 +68,10 @@ describe("StartInputSchema", () => {
   });
 
   it("rejects empty clientSeed", () => {
-    const result = StartInputSchema.safeParse({ ...validInput, clientSeed: "" });
+    const result = StartInputSchema.safeParse({
+      ...validInput,
+      clientSeed: "",
+    });
     assert.equal(result.success, false);
   });
 });
@@ -109,7 +112,10 @@ describe("ClimbInputSchema", () => {
   });
 
   it("rejects empty clientSeed", () => {
-    const result = ClimbInputSchema.safeParse({ ...validInput, clientSeed: "" });
+    const result = ClimbInputSchema.safeParse({
+      ...validInput,
+      clientSeed: "",
+    });
     assert.equal(result.success, false);
   });
 });

@@ -2,7 +2,7 @@
 
 export type DbTowerGameStatus = "ACTIVE" | "BUST" | "CASHOUT";
 
-export type DbTowerGame = {
+export interface DbTowerGame {
   id: string;
   user_id: string;
   casino_id: string;
@@ -14,4 +14,4 @@ export type DbTowerGame = {
   current_level: number;
   created_at: Date;
   ended_at: Date | null;
-};
+}

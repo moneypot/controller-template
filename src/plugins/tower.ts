@@ -30,18 +30,17 @@ import type { DbTowerGame } from "../dbtypes.ts";
 // Multiplier grows exponentially with each level cleared
 
 const HOUSE_EDGE = 0.01;
-const DOORS_PER_LEVEL = 2;
 
-export type TowerPluginOptions = {
+export interface TowerPluginOptions {
   maxFloor: number;
   riskPolicy: RiskPolicy;
-};
+}
 
 // Multiplier = (doors * (1 - houseEdge))^level
 export function computeMultiplier(
   doors: number,
   level: number,
-  houseEdge: number
+  houseEdge: number,
 ): number {
   if (level === 0) return 1;
   return Math.pow(doors * (1 - houseEdge), level);
@@ -56,13 +55,17 @@ export const StartInputSchema = z.object({
     .gte(2, { message: "Must have at least 2 doors" })
     .lte(4, { message: "Maximum 4 doors" }),
   hashChainId: z.uuid({ message: "Invalid hash chain ID" }),
-  clientSeed: z.string().min(1, { message: "Client seed is required" }),
+  clientSeed: z
+    .string()
+    .max(32, { message: "Client seed must be at most 32 characters" }),
 });
 
 export const ClimbInputSchema = z.object({
   gameId: z.string().uuid({ message: "Invalid game ID" }),
   door: z.number().int().gte(0, { message: "Door must be >= 0" }),
-  clientSeed: z.string().min(1, { message: "Client seed is required" }),
+  clientSeed: z
+    .string()
+    .max(32, { message: "Client seed must be at most 32 characters" }),
 });
 
 export const CashoutInputSchema = z.object({
@@ -78,21 +81,20 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
 
       These will be defined for us since we granted select access to app_postgraphile:
 
-        enum TowerGameStatus {
-          ACTIVE
-          BUST
-          CASHOUT
-        }
+      enum TowerGameStatus {
+        ACTIVE
+        BUST
+        CASHOUT
+      }
 
-        type TowerGame {
-          id: UUID!
-          status: TowerGameStatus!
-          wager: BigInt!
-          doors: Int!
-          currentLevel: Int!
-          currentMultiplier: Float!
-        }
-
+      type TowerGame {
+        id: UUID!
+        status: TowerGameStatus!
+        wager: BigInt!
+        doors: Int!
+        currentLevel: Int!
+        currentMultiplier: Float!
+      }
       */
       typeDefs: gql`
         input StartTowerGameInput {
@@ -180,10 +182,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                             DbCurrency,
                             "key" | "display_unit_name" | "display_unit_scale"
                           >
-                        >(
-                          `SELECT key, display_unit_name, display_unit_scale FROM hub.currency WHERE key = $1 AND casino_id = $2`,
-                          [input.currency, session.casino_id]
-                        )
+                        >(`SELECT key, display_unit_name, display_unit_scale FROM hub.currency WHERE key = $1 AND casino_id = $2`, [input.currency, session.casino_id])
                         .then(maybeOneRow);
 
                       if (!dbCurrency) {
@@ -199,13 +198,13 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                             session.user_id,
                             session.experience_id,
                             session.casino_id,
-                          ]
+                          ],
                         )
                         .then(maybeOneRow);
 
                       if (existingGame) {
                         throw new GraphQLError(
-                          "You already have an active tower game"
+                          "You already have an active tower game",
                         );
                       }
 
@@ -217,7 +216,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                           casinoId: session.casino_id,
                           experienceId: session.experience_id,
                           currencyKey: dbCurrency.key,
-                        }
+                        },
                       );
 
                       if (
@@ -238,15 +237,15 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
 
                       if (!hashChain) {
                         throw new GraphQLError(
-                          "Hash chain not found or inactive"
+                          "Hash chain not found or inactive",
                         );
                       }
 
                       // Calculate max potential payout for risk check
                       const maxMultiplier = computeMultiplier(
-                        DOORS_PER_LEVEL,
+                        input.doors,
                         maxFloor,
-                        HOUSE_EDGE
+                        HOUSE_EDGE,
                       );
                       const maxPayout = input.wager * maxMultiplier;
 
@@ -256,7 +255,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                         {
                           casinoId: session.casino_id,
                           currencyKey: dbCurrency.key,
-                        }
+                        },
                       );
 
                       if (!dbLockedHouseBankroll) {
@@ -293,7 +292,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                       // Deduct wager from player
                       await pgClient.query(
                         `UPDATE hub.balance SET amount = amount - $1 WHERE id = $2`,
-                        [input.wager, dbLockedPlayerBalance.id]
+                        [input.wager, dbLockedPlayerBalance.id],
                       );
 
                       // Create game record
@@ -308,8 +307,8 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                             session.experience_id,
                             dbCurrency.key,
                             input.wager,
-                            DOORS_PER_LEVEL,
-                          ]
+                            input.doors,
+                          ],
                         )
                         .then(exactlyOneRow);
 
@@ -317,9 +316,9 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                         __typename: "StartTowerGameSuccess" as const,
                         gameId: game.id,
                       };
-                    }
+                    },
                   );
-                }
+                },
               );
 
               return object({ result: $result });
@@ -356,17 +355,18 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                       // Lock the game row
                       const dbLockedGame = await pgClient
                         .query<DbTowerGame>(
-                          `SELECT * FROM app.tower_game WHERE id = $1 FOR UPDATE`,
-                          [input.gameId]
+                          `SELECT * FROM app.tower_game WHERE id = $1 AND user_id = $2 AND experience_id = $3 AND casino_id = $4 FOR UPDATE`,
+                          [
+                            input.gameId,
+                            session.user_id,
+                            session.experience_id,
+                            session.casino_id,
+                          ],
                         )
                         .then(maybeOneRow);
 
                       if (!dbLockedGame) {
                         throw new GraphQLError("Game not found");
-                      }
-
-                      if (dbLockedGame.user_id !== session.user_id) {
-                        throw new GraphQLError("Not your game");
                       }
 
                       if (dbLockedGame.status !== "ACTIVE") {
@@ -375,7 +375,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
 
                       if (input.door < 0 || input.door >= dbLockedGame.doors) {
                         throw new GraphQLError(
-                          `Door must be between 0 and ${dbLockedGame.doors - 1}`
+                          `Door must be between 0 and ${dbLockedGame.doors - 1}`,
                         );
                       }
 
@@ -389,7 +389,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                             session.user_id,
                             session.experience_id,
                             session.casino_id,
-                          ]
+                          ],
                         )
                         .then(maybeOneRow);
 
@@ -410,14 +410,14 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
 
                       if (hashResult.type !== "success") {
                         throw new GraphQLError(
-                          "Failed to get hash: " + hashResult.reason
+                          "Failed to get hash: " + hashResult.reason,
                         );
                       }
 
                       // Decrement hash chain
                       await pgClient.query(
                         `UPDATE hub.hash_chain SET current_iteration = $1 WHERE id = $2`,
-                        [iteration, dbLockedHashChain.id]
+                        [iteration, dbLockedHashChain.id],
                       );
 
                       // Store hash
@@ -441,7 +441,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                       });
                       const normalized = normalizeHash(finalHash);
                       const safeDoor = Math.floor(
-                        normalized * dbLockedGame.doors
+                        normalized * dbLockedGame.doors,
                       );
                       const isSafe = input.door === safeDoor;
 
@@ -453,20 +453,20 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                            SET current_level = current_level + 1
                            WHERE id = $1
                            RETURNING *`,
-                            [dbLockedGame.id]
+                            [dbLockedGame.id],
                           )
                           .then(exactlyOneRow);
 
                         const newMultiplier = computeMultiplier(
                           updatedGame.doors,
                           updatedGame.current_level,
-                          HOUSE_EDGE
+                          HOUSE_EDGE,
                         );
 
                         // Auto-cashout at MAX_FLOOR
                         if (updatedGame.current_level === maxFloor) {
                           const payout = Math.floor(
-                            updatedGame.wager * newMultiplier
+                            updatedGame.wager * newMultiplier,
                           );
                           const houseProfit = updatedGame.wager - payout;
 
@@ -497,7 +497,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                           // Pay player
                           await pgClient.query(
                             `UPDATE hub.balance SET amount = amount + $1 WHERE id = $2`,
-                            [payout, dbLockedPlayerBalance.id]
+                            [payout, dbLockedPlayerBalance.id],
                           );
 
                           // Update house bankroll
@@ -509,7 +509,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                               houseProfit,
                               updatedGame.wager,
                               dbLockedHouseBankroll.id,
-                            ]
+                            ],
                           );
 
                           // Update game status
@@ -519,7 +519,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                              SET status = 'CASHOUT', ended_at = now()
                              WHERE id = $1
                              RETURNING *`,
-                              [updatedGame.id]
+                              [updatedGame.id],
                             )
                             .then(exactlyOneRow);
 
@@ -544,7 +544,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                           {
                             casinoId: session.casino_id,
                             currencyKey: dbLockedGame.currency_key,
-                          }
+                          },
                         );
 
                         if (!dbLockedHouseBankroll) {
@@ -556,7 +556,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                           `UPDATE hub.bankroll
                          SET amount = amount + $1, wagered = wagered + $1, bets = bets + 1
                          WHERE id = $2`,
-                          [dbLockedGame.wager, dbLockedHouseBankroll.id]
+                          [dbLockedGame.wager, dbLockedHouseBankroll.id],
                         );
 
                         // Update game status
@@ -566,7 +566,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                            SET status = 'BUST', ended_at = now()
                            WHERE id = $1
                            RETURNING *`,
-                            [dbLockedGame.id]
+                            [dbLockedGame.id],
                           )
                           .then(exactlyOneRow);
 
@@ -576,9 +576,9 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                           safeDoor,
                         };
                       }
-                    }
+                    },
                   );
-                }
+                },
               );
 
               return $result;
@@ -613,17 +613,18 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                       // Lock the game row
                       const dbLockedGame = await pgClient
                         .query<DbTowerGame>(
-                          `SELECT * FROM app.tower_game WHERE id = $1 FOR UPDATE`,
-                          [input.gameId]
+                          `SELECT * FROM app.tower_game WHERE id = $1 AND user_id = $2 AND experience_id = $3 AND casino_id = $4 FOR UPDATE`,
+                          [
+                            input.gameId,
+                            session.user_id,
+                            session.experience_id,
+                            session.casino_id,
+                          ],
                         )
                         .then(maybeOneRow);
 
                       if (!dbLockedGame) {
                         throw new GraphQLError("Game not found");
-                      }
-
-                      if (dbLockedGame.user_id !== session.user_id) {
-                        throw new GraphQLError("Not your game");
                       }
 
                       if (dbLockedGame.status !== "ACTIVE") {
@@ -632,17 +633,17 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
 
                       if (dbLockedGame.current_level === 0) {
                         throw new GraphQLError(
-                          "Must climb at least one level before cashing out"
+                          "Must climb at least one level before cashing out",
                         );
                       }
 
                       const multiplier = computeMultiplier(
                         dbLockedGame.doors,
                         dbLockedGame.current_level,
-                        HOUSE_EDGE
+                        HOUSE_EDGE,
                       );
                       const payout = Math.floor(
-                        dbLockedGame.wager * multiplier
+                        dbLockedGame.wager * multiplier,
                       );
                       const houseProfit = dbLockedGame.wager - payout; // negative = house loss
 
@@ -654,7 +655,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                           casinoId: session.casino_id,
                           experienceId: session.experience_id,
                           currencyKey: dbLockedGame.currency_key,
-                        }
+                        },
                       );
 
                       if (!dbLockedPlayerBalance) {
@@ -667,7 +668,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                         {
                           casinoId: session.casino_id,
                           currencyKey: dbLockedGame.currency_key,
-                        }
+                        },
                       );
 
                       if (!dbLockedHouseBankroll) {
@@ -677,7 +678,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                       // Pay player
                       await pgClient.query(
                         `UPDATE hub.balance SET amount = amount + $1 WHERE id = $2`,
-                        [payout, dbLockedPlayerBalance.id]
+                        [payout, dbLockedPlayerBalance.id],
                       );
 
                       // Update house bankroll (house pays out profit, wager was never added)
@@ -689,7 +690,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                           houseProfit,
                           dbLockedGame.wager,
                           dbLockedHouseBankroll.id,
-                        ]
+                        ],
                       );
 
                       // Update game status
@@ -699,7 +700,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                          SET status = 'CASHOUT', ended_at = now()
                          WHERE id = $1
                          RETURNING *`,
-                          [dbLockedGame.id]
+                          [dbLockedGame.id],
                         )
                         .then(exactlyOneRow);
 
@@ -707,9 +708,9 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                         gameId: updatedGame.id,
                         payout,
                       };
-                    }
+                    },
                   );
-                }
+                },
               );
 
               return $result;

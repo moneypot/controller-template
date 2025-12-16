@@ -34,7 +34,7 @@ describe("Tower Integration", () => {
       extraPgSchemas: ["app"],
       userDatabaseMigrationsPath: resolve(
         import.meta.dirname,
-        "../../migrations"
+        "../../migrations",
       ),
     });
   }, 30000);
@@ -72,19 +72,19 @@ describe("Tower Integration", () => {
     }>(query);
 
     const mutationNames = result.__schema.mutationType.fields.map(
-      (f) => f.name
+      (f) => f.name,
     );
     assert.ok(
       mutationNames.includes("startTowerGame"),
-      "startTowerGame mutation missing"
+      "startTowerGame mutation missing",
     );
     assert.ok(
       mutationNames.includes("climbTower"),
-      "climbTower mutation missing"
+      "climbTower mutation missing",
     );
     assert.ok(
       mutationNames.includes("cashoutTower"),
-      "cashoutTower mutation missing"
+      "cashoutTower mutation missing",
     );
   });
 
@@ -153,12 +153,12 @@ describe("Tower Integration", () => {
           hashChainId: hashChain.id,
           clientSeed: "test-seed",
         },
-      }
+      },
     );
 
     assert.equal(
       result.startTowerGame.result.__typename,
-      "StartTowerGameSuccess"
+      "StartTowerGameSuccess",
     );
     const game = result.startTowerGame.result.game;
     assert.ok(game);
@@ -228,7 +228,7 @@ describe("Tower Integration", () => {
           hashChainId: hashChain.id,
           clientSeed: "start",
         },
-      }
+      },
     );
     assert.ok(startResult.startTowerGame.result.game);
     let gameId = startResult.startTowerGame.result.game.id;
@@ -255,7 +255,9 @@ describe("Tower Integration", () => {
             }
           }
         `,
-        { input: { gameId, door: attempt % 2, clientSeed: `climb-${attempt}` } }
+        {
+          input: { gameId, door: attempt % 2, clientSeed: `climb-${attempt}` },
+        },
       );
 
       if (climbResult.climbTower.safe) {
@@ -270,7 +272,7 @@ describe("Tower Integration", () => {
         // Need fresh balance for next attempt
         await hub.dbPool.query(
           `UPDATE hub.balance SET amount = 1000 WHERE user_id = $1 AND experience_id = $2`,
-          [player.id, experience.id]
+          [player.id, experience.id],
         );
 
         const newGame = await graphqlClient.request<{
@@ -297,7 +299,7 @@ describe("Tower Integration", () => {
               hashChainId: hashChain.id,
               clientSeed: `restart-${attempt}`,
             },
-          }
+          },
         );
         // Update gameId for next climb attempt
         assert.ok(newGame.startTowerGame.result.game);
@@ -320,7 +322,7 @@ describe("Tower Integration", () => {
             }
           }
         `,
-        { input: { gameId } }
+        { input: { gameId } },
       );
 
       assert.equal(cashoutResult.cashoutTower.game.status, "CASHOUT");
@@ -388,7 +390,7 @@ describe("Tower Integration", () => {
           hashChainId: hashChain.id,
           clientSeed: "test",
         },
-      }
+      },
     );
     assert.ok(result.startTowerGame.result.game);
     const gameId = result.startTowerGame.result.game.id;
@@ -396,7 +398,7 @@ describe("Tower Integration", () => {
     // Try to climb as player2
     const { graphqlClient: client2 } = await hub.authenticate(
       player2.id,
-      experience.id
+      experience.id,
     );
     await assert.rejects(
       client2.request(
@@ -407,9 +409,9 @@ describe("Tower Integration", () => {
             }
           }
         `,
-        { input: { gameId, door: 0, clientSeed: "hack" } }
+        { input: { gameId, door: 0, clientSeed: "hack" } },
       ),
-      /Not your game/
+      /Game not found/,
     );
   });
 
@@ -463,10 +465,233 @@ describe("Tower Integration", () => {
             hashChainId: hashChain.id,
             clientSeed: "test",
           },
-        }
+        },
       ),
-      /Insufficient balance/
+      /Insufficient balance/,
     );
+  });
+
+  it("rejects wager exceeding risk policy limits", async () => {
+    const experience = await createExperience(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+    });
+    const player = await createPlayer(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      uname: "high-roller",
+    });
+    await createPlayerBalance(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      currencyKey: "HOUSE",
+      amount: 1_000_000,
+    });
+    // Small bankroll - 10% of 1000 = 100 max payout
+    // With 10 floors and 2 doors, multiplier ≈ 817x, so wager of 1 would need 817 max payout
+    await createHouseBankroll(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      currencyKey: "HOUSE",
+      amount: 1000,
+    });
+    const hashChain = await createHashChain(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      casinoId: hub.playgroundCasinoId,
+    });
+
+    const { graphqlClient } = await hub.authenticate(player.id, experience.id);
+
+    // Wager of 100 with max multiplier ~817x = 81,700 max payout
+    // But 10% of 1000 bankroll = 100 max payout allowed
+    const result = await graphqlClient.request<{
+      startTowerGame: {
+        result: {
+          __typename: string;
+          message?: string;
+        };
+      };
+    }>(
+      gql`
+        mutation StartGame($input: StartTowerGameInput!) {
+          startTowerGame(input: $input) {
+            result {
+              __typename
+              ... on HubRiskError {
+                message
+              }
+            }
+          }
+        }
+      `,
+      {
+        input: {
+          wager: 100,
+          currency: "HOUSE",
+          doors: 2,
+          hashChainId: hashChain.id,
+          clientSeed: "test",
+        },
+      },
+    );
+
+    assert.equal(result.startTowerGame.result.__typename, "HubRiskError");
+    assert.ok(result.startTowerGame.result.message);
+  });
+
+  it("supports different door counts", async () => {
+    const experience = await createExperience(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+    });
+    const player = await createPlayer(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      uname: "door-tester",
+    });
+    await createPlayerBalance(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      currencyKey: "HOUSE",
+      amount: 10000,
+    });
+    // Need large bankroll for 4 doors: (4*0.99)^10 ≈ 948,313x multiplier
+    // wager 100 * 948,313 = 94,831,300 max payout
+    // With 10% risk policy, need bankroll >= 948,313,000
+    await hub.dbPool.query(
+      `INSERT INTO hub.bankroll (casino_id, currency_key, amount)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (casino_id, currency_key) DO UPDATE SET amount = $3`,
+      [hub.playgroundCasinoId, "HOUSE", 1_000_000_000],
+    );
+    const hashChain = await createHashChain(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      casinoId: hub.playgroundCasinoId,
+      maxIterations: 100,
+    });
+
+    const { graphqlClient } = await hub.authenticate(player.id, experience.id);
+
+    // Test with 3 doors - multiplier (3*0.99)^10 ≈ 7,374x, max payout 737,400
+    const result3 = await graphqlClient.request<{
+      startTowerGame: {
+        result: {
+          __typename: string;
+          game?: { id: string; doors: number };
+        };
+      };
+    }>(
+      gql`
+        mutation StartGame($input: StartTowerGameInput!) {
+          startTowerGame(input: $input) {
+            result {
+              __typename
+              ... on StartTowerGameSuccess {
+                game {
+                  id
+                  doors
+                }
+              }
+            }
+          }
+        }
+      `,
+      {
+        input: {
+          wager: 100,
+          currency: "HOUSE",
+          doors: 3,
+          hashChainId: hashChain.id,
+          clientSeed: "three-doors",
+        },
+      },
+    );
+
+    assert.equal(
+      result3.startTowerGame.result.__typename,
+      "StartTowerGameSuccess",
+    );
+    assert.ok(result3.startTowerGame.result.game);
+    assert.equal(result3.startTowerGame.result.game.doors, 3);
+
+    // Complete or bust the game so we can start another
+    const gameId = result3.startTowerGame.result.game.id;
+    let gameActive = true;
+    while (gameActive) {
+      const climbResult = await graphqlClient.request<{
+        climbTower: { game: { status: string }; safe: boolean };
+      }>(
+        gql`
+          mutation Climb($input: ClimbTowerInput!) {
+            climbTower(input: $input) {
+              game {
+                status
+              }
+              safe
+            }
+          }
+        `,
+        { input: { gameId, door: 0, clientSeed: "climb" } },
+      );
+      if (
+        !climbResult.climbTower.safe ||
+        climbResult.climbTower.game.status !== "ACTIVE"
+      ) {
+        gameActive = false;
+      }
+    }
+
+    // Restore balance and bankroll for next test
+    await hub.dbPool.query(
+      `UPDATE hub.balance SET amount = 10000 WHERE user_id = $1 AND experience_id = $2`,
+      [player.id, experience.id],
+    );
+    await hub.dbPool.query(
+      `UPDATE hub.bankroll SET amount = 1000000000 WHERE casino_id = $1 AND currency_key = $2`,
+      [hub.playgroundCasinoId, "HOUSE"],
+    );
+
+    // Test with 4 doors - multiplier (4*0.99)^10 ≈ 948,313x, max payout 94,831,300
+    const result4 = await graphqlClient.request<{
+      startTowerGame: {
+        result: {
+          __typename: string;
+          game?: { id: string; doors: number };
+        };
+      };
+    }>(
+      gql`
+        mutation StartGame($input: StartTowerGameInput!) {
+          startTowerGame(input: $input) {
+            result {
+              __typename
+              ... on StartTowerGameSuccess {
+                game {
+                  id
+                  doors
+                }
+              }
+              ... on HubRiskError {
+                message
+              }
+            }
+          }
+        }
+      `,
+      {
+        input: {
+          wager: 100,
+          currency: "HOUSE",
+          doors: 4,
+          hashChainId: hashChain.id,
+          clientSeed: "four-doors",
+        },
+      },
+    );
+
+    assert.equal(
+      result4.startTowerGame.result.__typename,
+      "StartTowerGameSuccess",
+    );
+    assert.ok(result4.startTowerGame.result.game);
+    assert.equal(result4.startTowerGame.result.game.doors, 4);
   });
 });
 
@@ -482,7 +707,7 @@ describe("Tower Auto-Cashout", () => {
       extraPgSchemas: ["app"],
       userDatabaseMigrationsPath: resolve(
         import.meta.dirname,
-        "../../migrations"
+        "../../migrations",
       ),
     });
   }, 30000);
@@ -549,7 +774,7 @@ describe("Tower Auto-Cashout", () => {
             hashChainId: hashChain.id,
             clientSeed: `start-${attempt}`,
           },
-        }
+        },
       );
       assert.ok(startResult.startTowerGame.result.game);
       const gameId = startResult.startTowerGame.result.game.id;
@@ -576,7 +801,7 @@ describe("Tower Auto-Cashout", () => {
             }
           }
         `,
-        { input: { gameId, door: 0, clientSeed: `climb-${attempt}` } }
+        { input: { gameId, door: 0, clientSeed: `climb-${attempt}` } },
       );
 
       if (climbResult.climbTower.safe) {
@@ -584,17 +809,17 @@ describe("Tower Auto-Cashout", () => {
         assert.equal(
           climbResult.climbTower.autoCashout,
           true,
-          "Should auto-cashout at maxFloor"
+          "Should auto-cashout at maxFloor",
         );
         assert.equal(
           climbResult.climbTower.game.status,
           "CASHOUT",
-          "Game should be CASHOUT"
+          "Game should be CASHOUT",
         );
         assert.equal(
           climbResult.climbTower.game.currentLevel,
           1,
-          "Should be at level 1"
+          "Should be at level 1",
         );
         assert.ok(climbResult.climbTower.payout, "Should have payout");
         // With 2 doors, 1% house edge, level 1 multiplier = 2 * 0.99 = 1.98
@@ -602,21 +827,21 @@ describe("Tower Auto-Cashout", () => {
         assert.equal(
           climbResult.climbTower.payout,
           "198",
-          "Payout should be 198"
+          "Payout should be 198",
         );
         autoCashoutTriggered = true;
       } else {
         // Busted - restore balance for next attempt
         await hub.dbPool.query(
           `UPDATE hub.balance SET amount = 10000 WHERE user_id = $1 AND experience_id = $2`,
-          [player.id, experience.id]
+          [player.id, experience.id],
         );
       }
     }
 
     assert.ok(
       autoCashoutTriggered,
-      "Should have triggered auto-cashout within 50 attempts"
+      "Should have triggered auto-cashout within 50 attempts",
     );
   });
 });
