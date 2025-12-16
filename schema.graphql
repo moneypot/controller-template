@@ -39,95 +39,6 @@ type ClimbTowerPayload {
   safeDoor: Int!
 }
 
-enum CoinSide {
-  HEADS
-  TAILS
-}
-
-type CoinflipBet {
-  casinoId: UUID!
-  currencyKey: String!
-  experienceId: UUID!
-
-  """Reads a single `HubCasino` that is related to this `CoinflipBet`."""
-  hubCasinoByCasinoId: HubCasino
-
-  """Reads a single `HubCurrency` that is related to this `CoinflipBet`."""
-  hubCurrencyByCurrencyKeyAndCasinoId: HubCurrency
-
-  """Reads a single `HubExperience` that is related to this `CoinflipBet`."""
-  hubExperienceByExperienceId: HubExperience
-
-  """Reads a single `HubUser` that is related to this `CoinflipBet`."""
-  hubUserByUserId: HubUser
-  id: UUID!
-  multiplier: Float!
-  net: Float!
-  outcome: CoinSide!
-  target: CoinSide!
-  userId: UUID!
-  wager: Int!
-}
-
-"""
-A condition to be used against `CoinflipBet` object types. All fields are tested
-for equality and combined with a logical ‘and.’
-"""
-input CoinflipBetCondition {
-  """Checks for equality with the object’s `casinoId` field."""
-  casinoId: UUID
-
-  """Checks for equality with the object’s `experienceId` field."""
-  experienceId: UUID
-
-  """Checks for equality with the object’s `id` field."""
-  id: UUID
-
-  """Checks for equality with the object’s `userId` field."""
-  userId: UUID
-}
-
-"""A connection to a list of `CoinflipBet` values."""
-type CoinflipBetConnection {
-  """
-  A list of edges which contains the `CoinflipBet` and cursor to aid in pagination.
-  """
-  edges: [CoinflipBetEdge]!
-
-  """A list of `CoinflipBet` objects."""
-  nodes: [CoinflipBet]!
-
-  """Information to aid in pagination."""
-  pageInfo: PageInfo!
-
-  """The count of *all* `CoinflipBet` you could get from the connection."""
-  totalCount: Int!
-}
-
-"""A `CoinflipBet` edge in the connection."""
-type CoinflipBetEdge {
-  """A cursor for use in pagination."""
-  cursor: Cursor
-
-  """The `CoinflipBet` at the end of the edge."""
-  node: CoinflipBet
-}
-
-"""Methods to use when ordering `CoinflipBet`."""
-enum CoinflipBetOrderBy {
-  CASINO_ID_ASC
-  CASINO_ID_DESC
-  EXPERIENCE_ID_ASC
-  EXPERIENCE_ID_DESC
-  ID_ASC
-  ID_DESC
-  NATURAL
-  PRIMARY_KEY_ASC
-  PRIMARY_KEY_DESC
-  USER_ID_ASC
-  USER_ID_DESC
-}
-
 """A location in a connection that can be used for resuming pagination."""
 scalar Cursor
 
@@ -413,35 +324,6 @@ type HubBulkRiskLimit {
 
 type HubCasino {
   baseUrl: String!
-
-  """Reads and enables pagination through a set of `CoinflipBet`."""
-  coinflipBetsByCasinoId(
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: CoinflipBetCondition
-
-    """Only read the first `n` values of the set."""
-    first: Int
-
-    """Only read the last `n` values of the set."""
-    last: Int
-
-    """
-    Skip the first `n` values from our `after` cursor, an alternative to cursor
-    based pagination. May not be used with `last`.
-    """
-    offset: Int
-
-    """The method to use when ordering `CoinflipBet`."""
-    orderBy: [CoinflipBetOrderBy!] = [PRIMARY_KEY_ASC]
-  ): CoinflipBetConnection!
   graphqlUrl: String!
 
   """Reads and enables pagination through a set of `HubBalance`."""
@@ -945,6 +827,35 @@ type HubCasino {
   id: UUID!
   isPlayground: Boolean!
   name: String!
+
+  """Reads and enables pagination through a set of `TowerGame`."""
+  towerGamesByCasinoId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: TowerGameCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `TowerGame`."""
+    orderBy: [TowerGameOrderBy!] = [PRIMARY_KEY_ASC]
+  ): TowerGameConnection!
 }
 
 """
@@ -1560,35 +1471,6 @@ type HubExperience {
   casinoId: UUID!
   clientId: UUID
 
-  """Reads and enables pagination through a set of `CoinflipBet`."""
-  coinflipBetsByExperienceId(
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: CoinflipBetCondition
-
-    """Only read the first `n` values of the set."""
-    first: Int
-
-    """Only read the last `n` values of the set."""
-    last: Int
-
-    """
-    Skip the first `n` values from our `after` cursor, an alternative to cursor
-    based pagination. May not be used with `last`.
-    """
-    offset: Int
-
-    """The method to use when ordering `CoinflipBet`."""
-    orderBy: [CoinflipBetOrderBy!] = [PRIMARY_KEY_ASC]
-  ): CoinflipBetConnection!
-
   """Reads and enables pagination through a set of `HubBalance`."""
   hubBalancesByExperienceId(
     """Read all values in the set after (below) this cursor."""
@@ -1945,6 +1827,35 @@ type HubExperience {
   id: UUID!
   mpExperienceId: UUID!
   name: String!
+
+  """Reads and enables pagination through a set of `TowerGame`."""
+  towerGamesByExperienceId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: TowerGameCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `TowerGame`."""
+    orderBy: [TowerGameOrderBy!] = [PRIMARY_KEY_ASC]
+  ): TowerGameConnection!
   userId: UUID
 }
 
@@ -2753,35 +2664,6 @@ type HubUser {
   activeHashChain: HubHashChain
   casinoId: UUID!
   clientId: UUID
-
-  """Reads and enables pagination through a set of `CoinflipBet`."""
-  coinflipBetsByUserId(
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: CoinflipBetCondition
-
-    """Only read the first `n` values of the set."""
-    first: Int
-
-    """Only read the last `n` values of the set."""
-    last: Int
-
-    """
-    Skip the first `n` values from our `after` cursor, an alternative to cursor
-    based pagination. May not be used with `last`.
-    """
-    offset: Int
-
-    """The method to use when ordering `CoinflipBet`."""
-    orderBy: [CoinflipBetOrderBy!] = [PRIMARY_KEY_ASC]
-  ): CoinflipBetConnection!
   hubBalanceByCurrency(currency: String!): HubBalance
 
   """Reads and enables pagination through a set of `HubBalance`."""
@@ -3136,6 +3018,35 @@ type HubUser {
   ): HubWithdrawalConnection!
   id: UUID!
   mpUserId: UUID!
+
+  """Reads and enables pagination through a set of `TowerGame`."""
+  towerGamesByUserId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: TowerGameCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `TowerGame`."""
+    orderBy: [TowerGameOrderBy!] = [PRIMARY_KEY_ASC]
+  ): TowerGameConnection!
   uname: String!
 }
 
@@ -3604,9 +3515,6 @@ type Query {
     orderBy: [HubCasinoOrderBy!] = [PRIMARY_KEY_ASC]
   ): HubCasinoConnection
 
-  """Get a single `CoinflipBet`."""
-  coinflipBetById(id: UUID!): CoinflipBet
-
   """Get a single `HubApiKey`."""
   hubApiKeyById(id: UUID!): HubApiKey
 
@@ -3689,6 +3597,9 @@ type Query {
   which can only query top level fields if they are in a particular form.
   """
   query: Query!
+
+  """Get a single `TowerGame`."""
+  towerGameById(id: UUID!): TowerGame
 }
 
 input StartTowerGameInput {
@@ -3700,6 +3611,12 @@ input StartTowerGameInput {
 }
 
 type StartTowerGamePayload {
+  result: StartTowerGameResult!
+}
+
+union StartTowerGameResult = StartTowerGameSuccess | TowerRiskError
+
+type StartTowerGameSuccess {
   game: TowerGame!
 }
 
@@ -3713,18 +3630,99 @@ type Subscription {
 }
 
 type TowerGame {
+  casinoId: UUID!
+  createdAt: Datetime!
+  currencyKey: String!
   currentLevel: Int!
-  currentMultiplier: Float!
   doors: Int!
+  endedAt: Datetime
+  experienceId: UUID!
+
+  """Reads a single `HubCasino` that is related to this `TowerGame`."""
+  hubCasinoByCasinoId: HubCasino
+
+  """Reads a single `HubCurrency` that is related to this `TowerGame`."""
+  hubCurrencyByCurrencyKeyAndCasinoId: HubCurrency
+
+  """Reads a single `HubExperience` that is related to this `TowerGame`."""
+  hubExperienceByExperienceId: HubExperience
+
+  """Reads a single `HubUser` that is related to this `TowerGame`."""
+  hubUserByUserId: HubUser
   id: UUID!
   status: TowerGameStatus!
+  userId: UUID!
   wager: BigInt!
+}
+
+"""
+A condition to be used against `TowerGame` object types. All fields are tested
+for equality and combined with a logical ‘and.’
+"""
+input TowerGameCondition {
+  """Checks for equality with the object’s `casinoId` field."""
+  casinoId: UUID
+
+  """Checks for equality with the object’s `experienceId` field."""
+  experienceId: UUID
+
+  """Checks for equality with the object’s `id` field."""
+  id: UUID
+
+  """Checks for equality with the object’s `userId` field."""
+  userId: UUID
+}
+
+"""A connection to a list of `TowerGame` values."""
+type TowerGameConnection {
+  """
+  A list of edges which contains the `TowerGame` and cursor to aid in pagination.
+  """
+  edges: [TowerGameEdge]!
+
+  """A list of `TowerGame` objects."""
+  nodes: [TowerGame]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `TowerGame` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `TowerGame` edge in the connection."""
+type TowerGameEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `TowerGame` at the end of the edge."""
+  node: TowerGame
+}
+
+"""Methods to use when ordering `TowerGame`."""
+enum TowerGameOrderBy {
+  CASINO_ID_ASC
+  CASINO_ID_DESC
+  EXPERIENCE_ID_ASC
+  EXPERIENCE_ID_DESC
+  ID_ASC
+  ID_DESC
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  USER_ID_ASC
+  USER_ID_DESC
 }
 
 enum TowerGameStatus {
   ACTIVE
   BUST
   CASHOUT
+}
+
+type TowerRiskError {
+  maxPayout: Float!
+  message: String!
 }
 
 """
