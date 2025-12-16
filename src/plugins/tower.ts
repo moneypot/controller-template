@@ -31,10 +31,9 @@ import type { DbTowerGame } from "../dbtypes.ts";
 
 const HOUSE_EDGE = 0.01;
 const DOORS_PER_LEVEL = 2;
-const DEFAULT_MAX_FLOOR = 10;
 
 export type TowerPluginOptions = {
-  maxFloor?: number;
+  maxFloor: number;
   riskPolicy: RiskPolicy;
 };
 
@@ -70,10 +69,7 @@ export const CashoutInputSchema = z.object({
   gameId: z.uuid({ message: "Invalid game ID" }),
 });
 
-export function TowerPlugin({
-  maxFloor = DEFAULT_MAX_FLOOR,
-  riskPolicy,
-}: TowerPluginOptions) {
+export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
   return extendSchema((build) => {
     const towerGameResource = build.input.pgRegistry.pgResources.tower_game;
 

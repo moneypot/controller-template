@@ -1,5 +1,5 @@
 {
-  // "exclude": ["src/__generated__/**/*.ts"],
+  "include": ["src/**/*", "tests/**/*"],
   "compilerOptions": {
     // https://nodejs.org/api/typescript.html#type-stripping
     "noEmit": true,

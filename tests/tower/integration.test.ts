@@ -27,7 +27,10 @@ describe("Tower Integration", () => {
 
   beforeAll(async () => {
     hub = await startTestServer({
-      plugins: [...defaultPlugins, TowerPlugin({ riskPolicy: testRiskPolicy })],
+      plugins: [
+        ...defaultPlugins,
+        TowerPlugin({ maxFloor: 10, riskPolicy: testRiskPolicy }),
+      ],
       extraPgSchemas: ["app"],
       userDatabaseMigrationsPath: resolve(
         import.meta.dirname,

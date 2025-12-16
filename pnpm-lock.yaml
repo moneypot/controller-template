@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@moneypot/hub':
-        specifier: ^1.19.9
-        version: 1.19.9(97bd5ff11c1950dc618ec2b2fd9f198a)
+        specifier: ^1.19.10
+        version: 1.19.10(97bd5ff11c1950dc618ec2b2fd9f198a)
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
@@ -844,8 +844,8 @@ packages:
   '@moneypot/hash-herald@1.0.0':
     resolution: {integrity: sha512-Kem3ZL4mnpqcPHcOhOGOUicmRpIG70LIrvCLwKFYE1iGyAcSwAg4wndES1RGGQw32bWM7x5r06L3Zi1m0XDK4Q==}
 
-  '@moneypot/hub@1.19.9':
-    resolution: {integrity: sha512-E6TiALyha14Y59dqIDFTkA9Je/XJDs0fTsFnFRqqWLS144ANFwa37T51j7eNoLOFbAX0UZMHAab/NnXQdW+bOA==}
+  '@moneypot/hub@1.19.10':
+    resolution: {integrity: sha512-rwVmxCLr6DE9axQqJkLF+A2mzey+Z/6XaRgnRq8x4H32IFThQNI+pYRe4jTCg9+CXvKk/NkUnVe74GWfYgu8KA==}
     hasBin: true
     peerDependencies:
       graphile-config: ^1.0.0-rc.2
@@ -4093,7 +4093,7 @@ snapshots:
       protobufjs: 7.5.4
       tsafe: 1.8.12
 
-  '@moneypot/hub@1.19.9(97bd5ff11c1950dc618ec2b2fd9f198a)':
+  '@moneypot/hub@1.19.10(97bd5ff11c1950dc618ec2b2fd9f198a)':
     dependencies:
       '@graphile-contrib/pg-omit-archived': 4.0.0-rc.1(@dataplan/pg@1.0.0-rc.2(@dataplan/json@1.0.0-rc.2(grafast@1.0.0-rc.3(@envelop/core@5.4.0)(graphql@16.12.0)))(grafast@1.0.0-rc.3(@envelop/core@5.4.0)(graphql@16.12.0))(graphile-config@1.0.0-rc.2)(graphql@16.12.0)(pg-sql2@5.0.0-rc.2)(pg@8.16.3))(graphile-build-pg@5.0.0-rc.2(@dataplan/pg@1.0.0-rc.2(@dataplan/json@1.0.0-rc.2(grafast@1.0.0-rc.3(@envelop/core@5.4.0)(graphql@16.12.0)))(grafast@1.0.0-rc.3(@envelop/core@5.4.0)(graphql@16.12.0))(graphile-config@1.0.0-rc.2)(graphql@16.12.0)(pg-sql2@5.0.0-rc.2)(pg@8.16.3))(grafast@1.0.0-rc.3(@envelop/core@5.4.0)(graphql@16.12.0))(graphile-build@5.0.0-rc.2(grafast@1.0.0-rc.3(@envelop/core@5.4.0)(graphql@16.12.0))(graphile-config@1.0.0-rc.2)(graphql@16.12.0))(graphile-config@1.0.0-rc.2)(graphql@16.12.0)(pg-sql2@5.0.0-rc.2)(pg@8.16.3)(tamedevil@0.1.0-rc.2))(graphile-config@1.0.0-rc.2)(postgraphile@5.0.0-rc.3(7638a3a95158932d93fdb449abf85b2f))
       '@moneypot/hash-herald': 1.0.0
