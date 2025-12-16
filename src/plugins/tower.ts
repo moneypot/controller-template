@@ -1,0 +1,700 @@
+import { extendSchema, gql } from "@moneypot/hub/graphile";
+import { GraphQLError } from "@moneypot/hub/graphql";
+import {
+  dbLockPlayerBalance,
+  dbLockHouseBankroll,
+  withPgPoolTransaction,
+  type DbCurrency,
+} from "@moneypot/hub/db";
+import { exactlyOneRow, maybeOneRow } from "@moneypot/hub/db/util";
+import {
+  validateRisk,
+  type PluginContext,
+  type RiskPolicy,
+} from "@moneypot/hub";
+import {
+  dbLockHubHashChain,
+  dbInsertHubHash,
+  getIntermediateHash,
+  makeFinalHash,
+  normalizeHash,
+} from "@moneypot/hub/hash-chain";
+import { z } from "zod";
+import type { DbTowerGame } from "../dbtypes.ts";
+
+// Tower game: climb levels by picking the safe door
+// Each level has N doors, 1 is safe
+// Multiplier grows exponentially with each level cleared
+
+const HOUSE_EDGE = 0.01;
+const DOORS_PER_LEVEL = 2;
+const DEFAULT_MAX_FLOOR = 10;
+
+export type TowerPluginOptions = {
+  maxFloor?: number;
+  riskPolicy: RiskPolicy;
+};
+
+// Multiplier = (doors * (1 - houseEdge))^level
+export function computeMultiplier(
+  doors: number,
+  level: number,
+  houseEdge: number
+): number {
+  if (level === 0) return 1;
+  return Math.pow(doors * (1 - houseEdge), level);
+}
+
+export const StartInputSchema = z.object({
+  wager: z.number().int().gte(1, { message: "Wager must be at least 1" }),
+  currency: z.string().min(1, { message: "Currency is required" }),
+  doors: z
+    .number()
+    .int()
+    .gte(2, { message: "Must have at least 2 doors" })
+    .lte(4, { message: "Maximum 4 doors" }),
+  hashChainId: z.uuid({ message: "Invalid hash chain ID" }),
+  clientSeed: z.string().min(1, { message: "Client seed is required" }),
+});
+
+export const ClimbInputSchema = z.object({
+  gameId: z.string().uuid({ message: "Invalid game ID" }),
+  door: z.number().int().gte(0, { message: "Door must be >= 0" }),
+  clientSeed: z.string().min(1, { message: "Client seed is required" }),
+});
+
+export const CashoutInputSchema = z.object({
+  gameId: z.uuid({ message: "Invalid game ID" }),
+});
+
+export function TowerPlugin({
+  maxFloor = DEFAULT_MAX_FLOOR,
+  riskPolicy,
+}: TowerPluginOptions) {
+  return extendSchema({
+    typeDefs: gql`
+      enum TowerGameStatus {
+        ACTIVE
+        BUST
+        CASHOUT
+      }
+
+      type TowerGame {
+        id: UUID!
+        status: TowerGameStatus!
+        wager: BigInt!
+        doors: Int!
+        currentLevel: Int!
+        currentMultiplier: Float!
+      }
+
+      input StartTowerGameInput {
+        wager: Int!
+        currency: String!
+        doors: Int!
+        hashChainId: UUID!
+        clientSeed: String!
+      }
+
+      type TowerRiskError {
+        message: String!
+        maxPayout: Float!
+      }
+
+      type StartTowerGameSuccess {
+        game: TowerGame!
+      }
+
+      union StartTowerGameResult = StartTowerGameSuccess | TowerRiskError
+
+      type StartTowerGamePayload {
+        result: StartTowerGameResult!
+      }
+
+      input ClimbTowerInput {
+        gameId: UUID!
+        door: Int!
+        clientSeed: String!
+      }
+
+      type ClimbTowerPayload {
+        game: TowerGame!
+        safe: Boolean!
+        safeDoor: Int!
+        "Present when player reaches MAX_FLOOR and is auto-cashed out"
+        autoCashout: Boolean
+        "Payout amount (only present on auto-cashout)"
+        payout: BigInt
+      }
+
+      input CashoutTowerInput {
+        gameId: UUID!
+      }
+
+      type CashoutTowerPayload {
+        game: TowerGame!
+        payout: BigInt!
+      }
+
+      extend type Mutation {
+        startTowerGame(input: StartTowerGameInput!): StartTowerGamePayload!
+        climbTower(input: ClimbTowerInput!): ClimbTowerPayload!
+        cashoutTower(input: CashoutTowerInput!): CashoutTowerPayload!
+      }
+    `,
+    resolvers: {
+      TowerGame: {
+        currentLevel: (game: DbTowerGame) => game.current_level,
+        currentMultiplier: (
+          game: DbTowerGame & { currentMultiplier: number }
+        ) => game.currentMultiplier,
+      },
+
+      StartTowerGameResult: {
+        __resolveType(obj: { __typename: string }) {
+          return obj.__typename;
+        },
+      },
+
+      Mutation: {
+        // ─────────────────────────────────────────────────────────────────
+        // START TOWER GAME
+        // ─────────────────────────────────────────────────────────────────
+        startTowerGame: async (
+          _parent: unknown,
+          { input: rawInput }: { input: unknown },
+          context: PluginContext
+        ) => {
+          const { identity, superuserPool } = context;
+
+          if (identity?.kind !== "user") {
+            throw new GraphQLError("Unauthorized");
+          }
+
+          const { session } = identity;
+          const input = (() => {
+            const result = StartInputSchema.safeParse(rawInput);
+            if (!result.success) {
+              throw new GraphQLError(result.error.issues[0].message);
+            }
+            return result.data;
+          })();
+
+          // Verify currency exists and get display info
+          const dbCurrency = await superuserPool
+            .query<
+              Pick<
+                DbCurrency,
+                "key" | "display_unit_name" | "display_unit_scale"
+              >
+            >(
+              `SELECT key, display_unit_name, display_unit_scale FROM hub.currency WHERE key = $1 AND casino_id = $2`,
+              [input.currency, session.casino_id]
+            )
+            .then(maybeOneRow);
+
+          if (!dbCurrency) {
+            throw new GraphQLError("Currency not found");
+          }
+
+          return withPgPoolTransaction(superuserPool, async (pgClient) => {
+            // Check for existing active game
+            const existingGame = await pgClient
+              .query<DbTowerGame>(
+                `SELECT * FROM app.tower_game
+                 WHERE user_id = $1 AND experience_id = $2 AND casino_id = $3 AND status = 'ACTIVE'`,
+                [session.user_id, session.experience_id, session.casino_id]
+              )
+              .then(maybeOneRow);
+
+            if (existingGame) {
+              throw new GraphQLError("You already have an active tower game");
+            }
+
+            // Lock player balance
+            const dbLockedPlayerBalance = await dbLockPlayerBalance(pgClient, {
+              userId: session.user_id,
+              casinoId: session.casino_id,
+              experienceId: session.experience_id,
+              currencyKey: dbCurrency.key,
+            });
+
+            if (
+              !dbLockedPlayerBalance ||
+              dbLockedPlayerBalance.amount < input.wager
+            ) {
+              throw new GraphQLError("Insufficient balance");
+            }
+
+            // Lock hash chain
+            const hashChain = await dbLockHubHashChain(pgClient, {
+              userId: session.user_id,
+              experienceId: session.experience_id,
+              casinoId: session.casino_id,
+              hashChainId: input.hashChainId,
+              active: "must-be-active",
+            });
+
+            if (!hashChain) {
+              throw new GraphQLError("Hash chain not found or inactive");
+            }
+
+            // Calculate max potential payout for risk check
+            const maxMultiplier = computeMultiplier(
+              DOORS_PER_LEVEL,
+              maxFloor,
+              HOUSE_EDGE
+            );
+            const maxPayout = input.wager * maxMultiplier;
+
+            // Lock house bankroll (do this last to minimize lock time)
+            const dbLockedHouseBankroll = await dbLockHouseBankroll(pgClient, {
+              casinoId: session.casino_id,
+              currencyKey: dbCurrency.key,
+            });
+
+            if (!dbLockedHouseBankroll) {
+              throw new GraphQLError("House bankroll not found");
+            }
+
+            // Validate bet against risk policy
+            const riskLimits = riskPolicy({
+              type: "get-limits",
+              currency: dbCurrency.key,
+              bankroll: dbLockedHouseBankroll.amount,
+            });
+
+            const riskResult = validateRisk({
+              type: "validate-bet",
+              currency: dbCurrency.key,
+              wager: input.wager,
+              bankroll: dbLockedHouseBankroll.amount,
+              riskLimits,
+              maxPotentialPayout: maxPayout,
+              displayUnitName: dbCurrency.display_unit_name,
+              displayUnitScale: dbCurrency.display_unit_scale,
+              outcomes: [],
+            });
+
+            if (!riskResult.ok) {
+              return {
+                result: {
+                  __typename: "TowerRiskError",
+                  message: riskResult.error.message,
+                  maxPayout: riskResult.error.riskLimits.maxPayout,
+                },
+              };
+            }
+
+            // Deduct wager from player
+            await pgClient.query(
+              `UPDATE hub.balance SET amount = amount - $1 WHERE id = $2`,
+              [input.wager, dbLockedPlayerBalance.id]
+            );
+
+            // Create game record
+            const game = await pgClient
+              .query<DbTowerGame>(
+                `INSERT INTO app.tower_game (user_id, casino_id, experience_id, currency_key, wager, doors)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 RETURNING *`,
+                [
+                  session.user_id,
+                  session.casino_id,
+                  session.experience_id,
+                  dbCurrency.key,
+                  input.wager,
+                  DOORS_PER_LEVEL,
+                ]
+              )
+              .then(exactlyOneRow);
+
+            return {
+              result: {
+                __typename: "StartTowerGameSuccess",
+                game: {
+                  ...game,
+                  currentMultiplier: computeMultiplier(
+                    game.doors,
+                    game.current_level,
+                    HOUSE_EDGE
+                  ),
+                },
+              },
+            };
+          });
+        },
+
+        // ─────────────────────────────────────────────────────────────────
+        // CLIMB TOWER
+        // ─────────────────────────────────────────────────────────────────
+        climbTower: async (
+          _parent: unknown,
+          { input: rawInput }: { input: unknown },
+          context: PluginContext
+        ) => {
+          const { identity, superuserPool } = context;
+
+          if (identity?.kind !== "user") {
+            throw new GraphQLError("Unauthorized");
+          }
+
+          const { session } = identity;
+          const input = (() => {
+            const result = ClimbInputSchema.safeParse(rawInput);
+            if (!result.success) {
+              throw new GraphQLError(result.error.issues[0].message);
+            }
+            return result.data;
+          })();
+
+          return withPgPoolTransaction(superuserPool, async (pgClient) => {
+            // Lock the game row
+            const dbLockedGame = await pgClient
+              .query<DbTowerGame>(
+                `SELECT * FROM app.tower_game WHERE id = $1 FOR UPDATE`,
+                [input.gameId]
+              )
+              .then(maybeOneRow);
+
+            if (!dbLockedGame) {
+              throw new GraphQLError("Game not found");
+            }
+
+            if (dbLockedGame.user_id !== session.user_id) {
+              throw new GraphQLError("Not your game");
+            }
+
+            if (dbLockedGame.status !== "ACTIVE") {
+              throw new GraphQLError("Game is not active");
+            }
+
+            if (input.door < 0 || input.door >= dbLockedGame.doors) {
+              throw new GraphQLError(
+                `Door must be between 0 and ${dbLockedGame.doors - 1}`
+              );
+            }
+
+            // Lock hash chain
+            const dbLockedHashChain = await pgClient
+              .query<{ id: string; current_iteration: number }>(
+                `SELECT id, current_iteration FROM hub.hash_chain
+                 WHERE user_id = $1 AND experience_id = $2 AND casino_id = $3 AND active = true
+                 FOR UPDATE`,
+                [session.user_id, session.experience_id, session.casino_id]
+              )
+              .then(maybeOneRow);
+
+            if (!dbLockedHashChain) {
+              throw new GraphQLError("No active hash chain");
+            }
+
+            const iteration = dbLockedHashChain.current_iteration - 1;
+            if (iteration < 0) {
+              throw new GraphQLError("Hash chain exhausted");
+            }
+
+            // Get hash from hash-herald
+            const hashResult = await getIntermediateHash({
+              hashChainId: dbLockedHashChain.id,
+              iteration,
+            });
+
+            if (hashResult.type !== "success") {
+              throw new GraphQLError(
+                "Failed to get hash: " + hashResult.reason
+              );
+            }
+
+            // Decrement hash chain
+            await pgClient.query(
+              `UPDATE hub.hash_chain SET current_iteration = $1 WHERE id = $2`,
+              [iteration, dbLockedHashChain.id]
+            );
+
+            // Store hash
+            await dbInsertHubHash(pgClient, {
+              hashChainId: dbLockedHashChain.id,
+              kind: "INTERMEDIATE",
+              digest: hashResult.hash,
+              iteration,
+              clientSeed: input.clientSeed,
+              metadata: {
+                type: "TOWER_CLIMB",
+                gameId: dbLockedGame.id,
+                door: input.door,
+              },
+            });
+
+            // Determine outcome
+            const finalHash = makeFinalHash({
+              serverHash: hashResult.hash,
+              clientSeed: input.clientSeed,
+            });
+            const normalized = normalizeHash(finalHash);
+            const safeDoor = Math.floor(normalized * dbLockedGame.doors);
+            const isSafe = input.door === safeDoor;
+
+            if (isSafe) {
+              // Advance level
+              const updatedGame = await pgClient
+                .query<DbTowerGame>(
+                  `UPDATE app.tower_game
+                   SET current_level = current_level + 1
+                   WHERE id = $1
+                   RETURNING *`,
+                  [dbLockedGame.id]
+                )
+                .then(exactlyOneRow);
+
+              const newMultiplier = computeMultiplier(
+                updatedGame.doors,
+                updatedGame.current_level,
+                HOUSE_EDGE
+              );
+
+              // Auto-cashout at MAX_FLOOR
+              if (updatedGame.current_level === maxFloor) {
+                const payout = Math.floor(updatedGame.wager * newMultiplier);
+                const houseProfit = updatedGame.wager - payout;
+
+                // Lock player balance
+                const dbLockedPlayerBalance = await dbLockPlayerBalance(
+                  pgClient,
+                  {
+                    userId: session.user_id,
+                    casinoId: session.casino_id,
+                    experienceId: session.experience_id,
+                    currencyKey: updatedGame.currency_key,
+                  }
+                );
+
+                if (!dbLockedPlayerBalance) {
+                  throw new GraphQLError("Player balance not found");
+                }
+
+                // Lock house bankroll
+                const dbLockedHouseBankroll = await dbLockHouseBankroll(
+                  pgClient,
+                  {
+                    casinoId: session.casino_id,
+                    currencyKey: updatedGame.currency_key,
+                  }
+                );
+
+                if (!dbLockedHouseBankroll) {
+                  throw new GraphQLError("House bankroll not found");
+                }
+
+                // Pay player
+                await pgClient.query(
+                  `UPDATE hub.balance SET amount = amount + $1 WHERE id = $2`,
+                  [payout, dbLockedPlayerBalance.id]
+                );
+
+                // Update house bankroll
+                await pgClient.query(
+                  `UPDATE hub.bankroll
+                   SET amount = amount + $1, wagered = wagered + $2, bets = bets + 1
+                   WHERE id = $3`,
+                  [houseProfit, updatedGame.wager, dbLockedHouseBankroll.id]
+                );
+
+                // Update game status
+                const finalGame = await pgClient
+                  .query<DbTowerGame>(
+                    `UPDATE app.tower_game
+                     SET status = 'CASHOUT', ended_at = now()
+                     WHERE id = $1
+                     RETURNING *`,
+                    [updatedGame.id]
+                  )
+                  .then(exactlyOneRow);
+
+                return {
+                  game: {
+                    ...finalGame,
+                    currentMultiplier: newMultiplier,
+                  },
+                  safe: true,
+                  safeDoor,
+                  autoCashout: true,
+                  payout,
+                };
+              }
+
+              return {
+                game: {
+                  ...updatedGame,
+                  currentMultiplier: newMultiplier,
+                },
+                safe: true,
+                safeDoor,
+              };
+            } else {
+              // Bust - house wins the wager
+              const dbLockedHouseBankroll = await dbLockHouseBankroll(
+                pgClient,
+                {
+                  casinoId: session.casino_id,
+                  currencyKey: dbLockedGame.currency_key,
+                }
+              );
+
+              if (!dbLockedHouseBankroll) {
+                throw new GraphQLError("House bankroll not found");
+              }
+
+              // House collects wager
+              await pgClient.query(
+                `UPDATE hub.bankroll
+                 SET amount = amount + $1, wagered = wagered + $1, bets = bets + 1
+                 WHERE id = $2`,
+                [dbLockedGame.wager, dbLockedHouseBankroll.id]
+              );
+
+              // Update game status
+              const updatedGame = await pgClient
+                .query<DbTowerGame>(
+                  `UPDATE app.tower_game
+                   SET status = 'BUST', ended_at = now()
+                   WHERE id = $1
+                   RETURNING *`,
+                  [dbLockedGame.id]
+                )
+                .then(exactlyOneRow);
+
+              return {
+                game: {
+                  ...updatedGame,
+                  currentMultiplier: computeMultiplier(
+                    updatedGame.doors,
+                    updatedGame.current_level,
+                    HOUSE_EDGE
+                  ),
+                },
+                safe: false,
+                safeDoor,
+              };
+            }
+          });
+        },
+
+        // ─────────────────────────────────────────────────────────────────
+        // CASHOUT TOWER
+        // ─────────────────────────────────────────────────────────────────
+        cashoutTower: async (
+          _parent: unknown,
+          { input: rawInput }: { input: unknown },
+          context: PluginContext
+        ) => {
+          const { identity, superuserPool } = context;
+
+          if (identity?.kind !== "user") {
+            throw new GraphQLError("Unauthorized");
+          }
+
+          const { session } = identity;
+          const input = (() => {
+            const result = CashoutInputSchema.safeParse(rawInput);
+            if (!result.success) {
+              throw new GraphQLError(result.error.issues[0].message);
+            }
+            return result.data;
+          })();
+
+          return withPgPoolTransaction(superuserPool, async (pgClient) => {
+            // Lock the game row
+            const dbLockedGame = await pgClient
+              .query<DbTowerGame>(
+                `SELECT * FROM app.tower_game WHERE id = $1 FOR UPDATE`,
+                [input.gameId]
+              )
+              .then(maybeOneRow);
+
+            if (!dbLockedGame) {
+              throw new GraphQLError("Game not found");
+            }
+
+            if (dbLockedGame.user_id !== session.user_id) {
+              throw new GraphQLError("Not your game");
+            }
+
+            if (dbLockedGame.status !== "ACTIVE") {
+              throw new GraphQLError("Game is not active");
+            }
+
+            if (dbLockedGame.current_level === 0) {
+              throw new GraphQLError(
+                "Must climb at least one level before cashing out"
+              );
+            }
+
+            const multiplier = computeMultiplier(
+              dbLockedGame.doors,
+              dbLockedGame.current_level,
+              HOUSE_EDGE
+            );
+            const payout = Math.floor(dbLockedGame.wager * multiplier);
+            const houseProfit = dbLockedGame.wager - payout; // negative = house loss
+
+            // Lock player balance
+            const dbLockedPlayerBalance = await dbLockPlayerBalance(pgClient, {
+              userId: session.user_id,
+              casinoId: session.casino_id,
+              experienceId: session.experience_id,
+              currencyKey: dbLockedGame.currency_key,
+            });
+
+            if (!dbLockedPlayerBalance) {
+              throw new GraphQLError("Player balance not found");
+            }
+
+            // Lock house bankroll
+            const dbLockedHouseBankroll = await dbLockHouseBankroll(pgClient, {
+              casinoId: session.casino_id,
+              currencyKey: dbLockedGame.currency_key,
+            });
+
+            if (!dbLockedHouseBankroll) {
+              throw new GraphQLError("House bankroll not found");
+            }
+
+            // Pay player
+            await pgClient.query(
+              `UPDATE hub.balance SET amount = amount + $1 WHERE id = $2`,
+              [payout, dbLockedPlayerBalance.id]
+            );
+
+            // Update house bankroll (house pays out profit, wager was never added)
+            await pgClient.query(
+              `UPDATE hub.bankroll
+               SET amount = amount + $1, wagered = wagered + $2, bets = bets + 1
+               WHERE id = $3`,
+              [houseProfit, dbLockedGame.wager, dbLockedHouseBankroll.id]
+            );
+
+            // Update game status
+            const updatedGame = await pgClient
+              .query<DbTowerGame>(
+                `UPDATE app.tower_game
+                 SET status = 'CASHOUT', ended_at = now()
+                 WHERE id = $1
+                 RETURNING *`,
+                [dbLockedGame.id]
+              )
+              .then(exactlyOneRow);
+
+            return {
+              game: {
+                ...updatedGame,
+                currentMultiplier: multiplier,
+              },
+              payout,
+            };
+          });
+        },
+      },
+    },
+  });
+}

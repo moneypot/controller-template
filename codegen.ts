@@ -9,9 +9,12 @@ const config: CodegenConfig = {
       config: {
         useTypeImports: true, // use `import type {}`
         enumsAsConst: true, // turn enums intotype {} as const
+
+        // Tell codegen how to generate scalar types (default is string)
         scalars: {
           BigInt: {
-            input: "string", // Or "bigint" if you're using environments that support it
+            // Or "bigint" if you're using environments that support it
+            input: "string",
             output: "string",
           },
           Cursor: {

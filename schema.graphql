@@ -1,3 +1,8 @@
+enum AnyGameKind {
+  GENERAL
+  TOWER
+}
+
 """Binary data encoded using Base64"""
 scalar Base64EncodedBinary
 
@@ -8,8 +13,127 @@ strings and not numbers.
 """
 scalar BigInt
 
+input CashoutTowerInput {
+  gameId: UUID!
+}
+
+type CashoutTowerPayload {
+  game: TowerGame!
+  payout: BigInt!
+}
+
+input ClimbTowerInput {
+  clientSeed: String!
+  door: Int!
+  gameId: UUID!
+}
+
+type ClimbTowerPayload {
+  """Present when player reaches MAX_FLOOR and is auto-cashed out"""
+  autoCashout: Boolean
+  game: TowerGame!
+
+  """Payout amount (only present on auto-cashout)"""
+  payout: BigInt
+  safe: Boolean!
+  safeDoor: Int!
+}
+
+enum CoinSide {
+  HEADS
+  TAILS
+}
+
+type CoinflipBet {
+  casinoId: UUID!
+  currencyKey: String!
+  experienceId: UUID!
+
+  """Reads a single `HubCasino` that is related to this `CoinflipBet`."""
+  hubCasinoByCasinoId: HubCasino
+
+  """Reads a single `HubCurrency` that is related to this `CoinflipBet`."""
+  hubCurrencyByCurrencyKeyAndCasinoId: HubCurrency
+
+  """Reads a single `HubExperience` that is related to this `CoinflipBet`."""
+  hubExperienceByExperienceId: HubExperience
+
+  """Reads a single `HubUser` that is related to this `CoinflipBet`."""
+  hubUserByUserId: HubUser
+  id: UUID!
+  multiplier: Float!
+  net: Float!
+  outcome: CoinSide!
+  target: CoinSide!
+  userId: UUID!
+  wager: Int!
+}
+
+"""
+A condition to be used against `CoinflipBet` object types. All fields are tested
+for equality and combined with a logical ‘and.’
+"""
+input CoinflipBetCondition {
+  """Checks for equality with the object’s `casinoId` field."""
+  casinoId: UUID
+
+  """Checks for equality with the object’s `experienceId` field."""
+  experienceId: UUID
+
+  """Checks for equality with the object’s `id` field."""
+  id: UUID
+
+  """Checks for equality with the object’s `userId` field."""
+  userId: UUID
+}
+
+"""A connection to a list of `CoinflipBet` values."""
+type CoinflipBetConnection {
+  """
+  A list of edges which contains the `CoinflipBet` and cursor to aid in pagination.
+  """
+  edges: [CoinflipBetEdge]!
+
+  """A list of `CoinflipBet` objects."""
+  nodes: [CoinflipBet]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `CoinflipBet` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `CoinflipBet` edge in the connection."""
+type CoinflipBetEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `CoinflipBet` at the end of the edge."""
+  node: CoinflipBet
+}
+
+"""Methods to use when ordering `CoinflipBet`."""
+enum CoinflipBetOrderBy {
+  CASINO_ID_ASC
+  CASINO_ID_DESC
+  EXPERIENCE_ID_ASC
+  EXPERIENCE_ID_DESC
+  ID_ASC
+  ID_DESC
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  USER_ID_ASC
+  USER_ID_DESC
+}
+
 """A location in a connection that can be used for resuming pagination."""
 scalar Cursor
+
+enum CustomGameKind {
+  TOWER
+}
 
 """
 A point in time as described by the [ISO
@@ -106,7 +230,7 @@ type HubAuthenticateSuccess {
 }
 
 type HubBadHashChainError {
-  message: String
+  message: String!
 }
 
 type HubBalance {
@@ -281,8 +405,43 @@ input HubBankrollPatch {
   wagered: Float
 }
 
+type HubBulkRiskLimit {
+  currency: String!
+  gameKind: AnyGameKind!
+  maxPayout: Float!
+}
+
 type HubCasino {
   baseUrl: String!
+
+  """Reads and enables pagination through a set of `CoinflipBet`."""
+  coinflipBetsByCasinoId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: CoinflipBetCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `CoinflipBet`."""
+    orderBy: [CoinflipBetOrderBy!] = [PRIMARY_KEY_ASC]
+  ): CoinflipBetConnection!
   graphqlUrl: String!
 
   """Reads and enables pagination through a set of `HubBalance`."""
@@ -1401,6 +1560,35 @@ type HubExperience {
   casinoId: UUID!
   clientId: UUID
 
+  """Reads and enables pagination through a set of `CoinflipBet`."""
+  coinflipBetsByExperienceId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: CoinflipBetCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `CoinflipBet`."""
+    orderBy: [CoinflipBetOrderBy!] = [PRIMARY_KEY_ASC]
+  ): CoinflipBetConnection!
+
   """Reads and enables pagination through a set of `HubBalance`."""
   hubBalancesByExperienceId(
     """Read all values in the set after (below) this cursor."""
@@ -2181,6 +2369,26 @@ enum HubJwkSetSnapshotOrderBy {
   PRIMARY_KEY_DESC
 }
 
+input HubMakeOutcomeBetInput {
+  clientSeed: String!
+  currency: String!
+  hashChainId: UUID!
+  kind: OutcomeBetKind!
+  metadata: JSON
+  outcomes: [HubOutcomeInput!]!
+  wager: Int!
+}
+
+type HubMakeOutcomeBetPayload {
+  result: HubMakeOutcomeBetResult!
+}
+
+union HubMakeOutcomeBetResult = HubBadHashChainError | HubMakeOutcomeBetSuccess | HubRiskError
+
+type HubMakeOutcomeBetSuccess {
+  bet: HubOutcomeBet!
+}
+
 enum HubMpTakeRequestStatus {
   CONTROLLER_REJECTED
   PENDING
@@ -2302,6 +2510,12 @@ enum HubOutcomeBetOrderBy {
   USER_ID_DESC
 }
 
+"""An input for mutations affecting `HubOutcome`"""
+input HubOutcomeInput {
+  profit: Float!
+  weight: Float!
+}
+
 type HubPutAlertPayload {
   currencyKey: String!
   mpTransferId: UUID!
@@ -2313,6 +2527,15 @@ input HubRevealHashChainInput {
 
 type HubRevealHashChainPayload {
   preimageHash: HubHash!
+}
+
+type HubRiskError {
+  message: String!
+  riskLimits: HubRiskLimit!
+}
+
+type HubRiskLimit {
+  maxPayout: Float!
 }
 
 type HubSession {
@@ -2431,6 +2654,8 @@ type HubTakeRequest {
   status: HubTakeRequestStatus!
   statusChangedAt: Datetime!
   transferCompletionAttemptedAt: Datetime
+  transferFailureCount: Int
+  transferFirstFailureAt: Datetime
   transferNeedsCompletion: Boolean!
   updatedAt: Datetime!
   userId: UUID!
@@ -2528,6 +2753,35 @@ type HubUser {
   activeHashChain: HubHashChain
   casinoId: UUID!
   clientId: UUID
+
+  """Reads and enables pagination through a set of `CoinflipBet`."""
+  coinflipBetsByUserId(
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: CoinflipBetCondition
+
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """The method to use when ordering `CoinflipBet`."""
+    orderBy: [CoinflipBetOrderBy!] = [PRIMARY_KEY_ASC]
+  ): CoinflipBetConnection!
   hubBalanceByCurrency(currency: String!): HubBalance
 
   """Reads and enables pagination through a set of `HubBalance`."""
@@ -3168,6 +3422,18 @@ scalar JSON
 The root mutation type which contains root level fields which mutate data.
 """
 type Mutation {
+  cashoutTower(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: CashoutTowerInput!
+  ): CashoutTowerPayload!
+  climbTower(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: ClimbTowerInput!
+  ): ClimbTowerPayload!
   hubAddCasino(
     """
     The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
@@ -3223,12 +3489,24 @@ type Mutation {
     """
     input: HubCreatePlaygroundSessionInput!
   ): HubAuthenticatePayload
+  hubMakeOutcomeBet(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: HubMakeOutcomeBetInput!
+  ): HubMakeOutcomeBetPayload
   hubRevealHashChain(
     """
     The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
     """
     input: HubRevealHashChainInput!
   ): HubRevealHashChainPayload!
+  startTowerGame(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: StartTowerGameInput!
+  ): StartTowerGamePayload!
 
   """Updates a single `HubBankroll` using a unique key and a patch."""
   updateHubBankrollById(
@@ -3245,6 +3523,10 @@ type Mutation {
     """
     input: UpdateHubCasinoByIdInput!
   ): UpdateHubCasinoPayload
+}
+
+enum OutcomeBetKind {
+  GENERAL
 }
 
 """Information about pagination in a connection."""
@@ -3322,6 +3604,9 @@ type Query {
     orderBy: [HubCasinoOrderBy!] = [PRIMARY_KEY_ASC]
   ): HubCasinoConnection
 
+  """Get a single `CoinflipBet`."""
+  coinflipBetById(id: UUID!): CoinflipBet
+
   """Get a single `HubApiKey`."""
   hubApiKeyById(id: UUID!): HubApiKey
 
@@ -3379,6 +3664,7 @@ type Query {
 
   """Get a single `HubOutcomeBet`."""
   hubOutcomeBetById(id: UUID!): HubOutcomeBet
+  hubRiskLimits(gameKinds: [AnyGameKind!]!): [HubBulkRiskLimit!]!
 
   """Get a single `HubSession`."""
   hubSessionById(id: UUID!): HubSession
@@ -3405,6 +3691,18 @@ type Query {
   query: Query!
 }
 
+input StartTowerGameInput {
+  clientSeed: String!
+  currency: String!
+  doors: Int!
+  hashChainId: UUID!
+  wager: Int!
+}
+
+type StartTowerGamePayload {
+  game: TowerGame!
+}
+
 """
 The root subscription type: contains realtime events you can subscribe to with the `subscription` operation.
 """
@@ -3412,6 +3710,21 @@ type Subscription {
   hubBalanceAlert: HubBalanceAlertPayload
   hubChatAlert: HubChatSubscriptionPayload
   hubPutAlert: HubPutAlertPayload
+}
+
+type TowerGame {
+  currentLevel: Int!
+  currentMultiplier: Float!
+  doors: Int!
+  id: UUID!
+  status: TowerGameStatus!
+  wager: BigInt!
+}
+
+enum TowerGameStatus {
+  ACTIVE
+  BUST
+  CASHOUT
 }
 
 """
