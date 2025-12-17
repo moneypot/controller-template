@@ -109,7 +109,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
           game: TowerGame!
         }
 
-        union StartTowerGameResult = StartTowerGameSuccess | HubRiskError
+        union StartTowerGameResult = StartTowerGameSuccess | HubRiskError | HubBadHashChainError
 
         type StartTowerGamePayload {
           result: StartTowerGameResult!
@@ -121,7 +121,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
           clientSeed: String!
         }
 
-        type ClimbTowerPayload {
+        type ClimbTowerSuccess {
           game: TowerGame!
           safe: Boolean!
           safeDoor: Int!
@@ -129,6 +129,12 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
           autoCashout: Boolean
           "Payout amount (only present on auto-cashout)"
           payout: BigInt
+        }
+
+        union ClimbTowerResult = ClimbTowerSuccess | HubBadHashChainError
+
+        type ClimbTowerPayload {
+          result: ClimbTowerResult!
         }
 
         input CashoutTowerInput {
@@ -236,9 +242,10 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                       });
 
                       if (!hashChain) {
-                        throw new GraphQLError(
-                          "Hash chain not found or inactive",
-                        );
+                        return {
+                          __typename: "HubBadHashChainError" as const,
+                          message: "Hash chain not found or inactive",
+                        };
                       }
 
                       // Calculate max potential payout for risk check
@@ -394,12 +401,18 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                         .then(maybeOneRow);
 
                       if (!dbLockedHashChain) {
-                        throw new GraphQLError("No active hash chain");
+                        return {
+                          __typename: "HubBadHashChainError" as const,
+                          message: "No active hash chain",
+                        };
                       }
 
                       const iteration = dbLockedHashChain.current_iteration - 1;
-                      if (iteration < 0) {
-                        throw new GraphQLError("Hash chain exhausted");
+                      if (iteration < 1) {
+                        return {
+                          __typename: "HubBadHashChainError" as const,
+                          message: "Hash chain exhausted",
+                        };
                       }
 
                       // Get hash from hash-herald
@@ -524,6 +537,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                             .then(exactlyOneRow);
 
                           return {
+                            __typename: "ClimbTowerSuccess" as const,
                             gameId: finalGame.id,
                             safe: true,
                             safeDoor,
@@ -533,6 +547,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                         }
 
                         return {
+                          __typename: "ClimbTowerSuccess" as const,
                           gameId: updatedGame.id,
                           safe: true,
                           safeDoor,
@@ -571,6 +586,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                           .then(exactlyOneRow);
 
                         return {
+                          __typename: "ClimbTowerSuccess" as const,
                           gameId: updatedGame.id,
                           safe: false,
                           safeDoor,
@@ -581,7 +597,7 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
                 },
               );
 
-              return $result;
+              return object({ result: $result });
             },
 
             // ─────────────────────────────────────────────────────────────────
@@ -739,10 +755,21 @@ export function TowerPlugin({ maxFloor, riskPolicy }: TowerPluginOptions) {
           },
         },
 
-        // Payload for climbTower - fetches the game from DB
+        // Payload for climbTower
         ClimbTowerPayload: {
+          assertStep: ObjectStep,
           plans: {
-            game($data) {
+            result($data: ObjectStep) {
+              return $data.get("result");
+            },
+          },
+        },
+
+        // Success type for climbTower - fetches the game from DB
+        ClimbTowerSuccess: {
+          assertStep: ObjectStep,
+          plans: {
+            game($data: ObjectStep) {
               const $id = access($data, "gameId");
               return towerGameResource.get({ id: $id });
             },

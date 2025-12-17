@@ -238,20 +238,28 @@ describe("Tower Integration", () => {
     for (let attempt = 0; attempt < 10; attempt++) {
       const climbResult = await graphqlClient.request<{
         climbTower: {
-          game: { status: string; currentLevel: number };
-          safe: boolean;
-          safeDoor: number;
+          result: {
+            __typename: string;
+            game?: { status: string; currentLevel: number };
+            safe?: boolean;
+            safeDoor?: number;
+          };
         };
       }>(
         gql`
           mutation Climb($input: ClimbTowerInput!) {
             climbTower(input: $input) {
-              game {
-                status
-                currentLevel
+              result {
+                __typename
+                ... on ClimbTowerSuccess {
+                  game {
+                    status
+                    currentLevel
+                  }
+                  safe
+                  safeDoor
+                }
               }
-              safe
-              safeDoor
             }
           }
         `,
@@ -260,14 +268,16 @@ describe("Tower Integration", () => {
         },
       );
 
-      if (climbResult.climbTower.safe) {
+      assert.equal(climbResult.climbTower.result.__typename, "ClimbTowerSuccess");
+      const climbData = climbResult.climbTower.result;
+      if (climbData.safe) {
         climbed = true;
-        assert.equal(climbResult.climbTower.game.currentLevel, 1);
-        assert.equal(climbResult.climbTower.game.status, "ACTIVE");
+        assert.equal(climbData.game?.currentLevel, 1);
+        assert.equal(climbData.game?.status, "ACTIVE");
         break;
       } else {
         // Busted - start a new game and try again
-        assert.equal(climbResult.climbTower.game.status, "BUST");
+        assert.equal(climbData.game?.status, "BUST");
 
         // Need fresh balance for next attempt
         await hub.dbPool.query(
@@ -405,7 +415,12 @@ describe("Tower Integration", () => {
         gql`
           mutation Climb($input: ClimbTowerInput!) {
             climbTower(input: $input) {
-              safe
+              result {
+                __typename
+                ... on ClimbTowerSuccess {
+                  safe
+                }
+              }
             }
           }
         `,
@@ -616,23 +631,35 @@ describe("Tower Integration", () => {
     let gameActive = true;
     while (gameActive) {
       const climbResult = await graphqlClient.request<{
-        climbTower: { game: { status: string }; safe: boolean };
+        climbTower: {
+          result: {
+            __typename: string;
+            game?: { status: string };
+            safe?: boolean;
+          };
+        };
       }>(
         gql`
           mutation Climb($input: ClimbTowerInput!) {
             climbTower(input: $input) {
-              game {
-                status
+              result {
+                __typename
+                ... on ClimbTowerSuccess {
+                  game {
+                    status
+                  }
+                  safe
+                }
               }
-              safe
             }
           }
         `,
         { input: { gameId, door: 0, clientSeed: "climb" } },
       );
+      const climbData = climbResult.climbTower.result;
       if (
-        !climbResult.climbTower.safe ||
-        climbResult.climbTower.game.status !== "ACTIVE"
+        !climbData.safe ||
+        climbData.game?.status !== "ACTIVE"
       ) {
         gameActive = false;
       }
@@ -782,50 +809,60 @@ describe("Tower Auto-Cashout", () => {
       // Try to climb
       const climbResult = await graphqlClient.request<{
         climbTower: {
-          game: { status: string; currentLevel: number };
-          safe: boolean;
-          autoCashout?: boolean;
-          payout?: string;
+          result: {
+            __typename: string;
+            game?: { status: string; currentLevel: number };
+            safe?: boolean;
+            autoCashout?: boolean;
+            payout?: string;
+          };
         };
       }>(
         gql`
           mutation Climb($input: ClimbTowerInput!) {
             climbTower(input: $input) {
-              game {
-                status
-                currentLevel
+              result {
+                __typename
+                ... on ClimbTowerSuccess {
+                  game {
+                    status
+                    currentLevel
+                  }
+                  safe
+                  autoCashout
+                  payout
+                }
               }
-              safe
-              autoCashout
-              payout
             }
           }
         `,
         { input: { gameId, door: 0, clientSeed: `climb-${attempt}` } },
       );
 
-      if (climbResult.climbTower.safe) {
+      assert.equal(climbResult.climbTower.result.__typename, "ClimbTowerSuccess");
+      const climbData = climbResult.climbTower.result;
+      if (climbData.safe) {
         // With maxFloor=1, a successful climb should trigger auto-cashout
         assert.equal(
-          climbResult.climbTower.autoCashout,
+          climbData.autoCashout,
           true,
           "Should auto-cashout at maxFloor",
         );
         assert.equal(
-          climbResult.climbTower.game.status,
+          climbData.game?.status,
           "CASHOUT",
           "Game should be CASHOUT",
         );
         assert.equal(
-          climbResult.climbTower.game.currentLevel,
+          climbData.game?.currentLevel,
           1,
           "Should be at level 1",
         );
-        assert.ok(climbResult.climbTower.payout, "Should have payout");
+        assert.ok(climbData.payout, "Should have payout");
         // With 2 doors, 1% house edge, level 1 multiplier = 2 * 0.99 = 1.98
         // payout = floor(100 * 1.98) = 198
         assert.equal(
-          climbResult.climbTower.payout,
+          climbData.payout,
           "198",
           "Payout should be 198",
         );
@@ -843,5 +880,812 @@ describe("Tower Auto-Cashout", () => {
       autoCashoutTriggered,
       "Should have triggered auto-cashout within 50 attempts",
     );
+  });
+});
+
+describe("Tower State Transitions", () => {
+  let hub: HubTestServer;
+
+  beforeAll(async () => {
+    hub = await startTestServer({
+      plugins: [
+        ...defaultPlugins,
+        TowerPlugin({ maxFloor: 10, riskPolicy: testRiskPolicy }),
+      ],
+      extraPgSchemas: ["app"],
+      userDatabaseMigrationsPath: resolve(
+        import.meta.dirname,
+        "../../migrations",
+      ),
+    });
+  }, 30000);
+
+  afterAll(async () => {
+    if (hub) {
+      await hub.stop();
+    }
+  });
+
+  it("rejects climbing a BUST game", async () => {
+    const experience = await createExperience(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+    });
+    const player = await createPlayer(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      uname: "bust-climber",
+    });
+    await createPlayerBalance(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      currencyKey: "HOUSE",
+      amount: 100000,
+    });
+    await createHouseBankroll(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      currencyKey: "HOUSE",
+      amount: 1_000_000,
+    });
+    const hashChain = await createHashChain(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      casinoId: hub.playgroundCasinoId,
+      maxIterations: 100,
+    });
+
+    const { graphqlClient } = await hub.authenticate(player.id, experience.id);
+
+    // Keep trying until we bust
+    let bustedGameId: string | null = null;
+    for (let attempt = 0; attempt < 50 && !bustedGameId; attempt++) {
+      // Start a game
+      const startResult = await graphqlClient.request<{
+        startTowerGame: { result: { game?: { id: string } } };
+      }>(
+        gql`
+          mutation StartGame($input: StartTowerGameInput!) {
+            startTowerGame(input: $input) {
+              result {
+                ... on StartTowerGameSuccess {
+                  game {
+                    id
+                  }
+                }
+              }
+            }
+          }
+        `,
+        {
+          input: {
+            wager: 100,
+            currency: "HOUSE",
+            doors: 2,
+            hashChainId: hashChain.id,
+            clientSeed: `start-${attempt}`,
+          },
+        },
+      );
+      assert.ok(startResult.startTowerGame.result.game);
+      const gameId = startResult.startTowerGame.result.game.id;
+
+      // Keep climbing until we bust or cashout
+      let gameActive = true;
+      while (gameActive) {
+        const climbResult = await graphqlClient.request<{
+          climbTower: {
+            result: {
+              __typename: string;
+              game?: { status: string };
+              safe?: boolean;
+            };
+          };
+        }>(
+          gql`
+            mutation Climb($input: ClimbTowerInput!) {
+              climbTower(input: $input) {
+                result {
+                  __typename
+                  ... on ClimbTowerSuccess {
+                    game {
+                      status
+                    }
+                    safe
+                  }
+                }
+              }
+            }
+          `,
+          { input: { gameId, door: 0, clientSeed: `climb-${attempt}-${Math.random()}` } },
+        );
+
+        if (!climbResult.climbTower.result.safe) {
+          // We busted - save this gameId
+          assert.equal(climbResult.climbTower.result.game?.status, "BUST");
+          bustedGameId = gameId;
+          gameActive = false;
+        } else if (climbResult.climbTower.result.game?.status !== "ACTIVE") {
+          // Auto-cashed out at maxFloor
+          gameActive = false;
+        }
+        // Otherwise continue climbing
+      }
+
+      // Restore balance for next game
+      await hub.dbPool.query(
+        `UPDATE hub.balance SET amount = 100000 WHERE user_id = $1 AND experience_id = $2`,
+        [player.id, experience.id],
+      );
+    }
+
+    assert.ok(bustedGameId, "Should have busted a game");
+
+    // Now try to climb the BUST game - should fail
+    await assert.rejects(
+      graphqlClient.request(
+        gql`
+          mutation Climb($input: ClimbTowerInput!) {
+            climbTower(input: $input) {
+              result {
+                __typename
+              }
+            }
+          }
+        `,
+        { input: { gameId: bustedGameId, door: 0, clientSeed: "after-bust" } },
+      ),
+      /Game is not active/,
+    );
+  });
+
+  it("rejects cashing out a BUST game", async () => {
+    const experience = await createExperience(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+    });
+    const player = await createPlayer(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      uname: "bust-cashout",
+    });
+    await createPlayerBalance(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      currencyKey: "HOUSE",
+      amount: 100000,
+    });
+    await createHouseBankroll(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      currencyKey: "HOUSE",
+      amount: 1_000_000,
+    });
+    const hashChain = await createHashChain(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      casinoId: hub.playgroundCasinoId,
+      maxIterations: 100,
+    });
+
+    const { graphqlClient } = await hub.authenticate(player.id, experience.id);
+
+    // Keep trying until we bust
+    let bustedGameId: string | null = null;
+    for (let attempt = 0; attempt < 50 && !bustedGameId; attempt++) {
+      const startResult = await graphqlClient.request<{
+        startTowerGame: { result: { game?: { id: string } } };
+      }>(
+        gql`
+          mutation StartGame($input: StartTowerGameInput!) {
+            startTowerGame(input: $input) {
+              result {
+                ... on StartTowerGameSuccess {
+                  game {
+                    id
+                  }
+                }
+              }
+            }
+          }
+        `,
+        {
+          input: {
+            wager: 100,
+            currency: "HOUSE",
+            doors: 2,
+            hashChainId: hashChain.id,
+            clientSeed: `start-${attempt}`,
+          },
+        },
+      );
+      assert.ok(startResult.startTowerGame.result.game);
+      const gameId = startResult.startTowerGame.result.game.id;
+
+      // Keep climbing until we bust or cashout
+      let gameActive = true;
+      while (gameActive) {
+        const climbResult = await graphqlClient.request<{
+          climbTower: {
+            result: {
+              __typename: string;
+              game?: { status: string };
+              safe?: boolean;
+            };
+          };
+        }>(
+          gql`
+            mutation Climb($input: ClimbTowerInput!) {
+              climbTower(input: $input) {
+                result {
+                  __typename
+                  ... on ClimbTowerSuccess {
+                    game {
+                      status
+                    }
+                    safe
+                  }
+                }
+              }
+            }
+          `,
+          { input: { gameId, door: 0, clientSeed: `climb-${attempt}-${Math.random()}` } },
+        );
+
+        if (!climbResult.climbTower.result.safe) {
+          // We busted - save this gameId
+          assert.equal(climbResult.climbTower.result.game?.status, "BUST");
+          bustedGameId = gameId;
+          gameActive = false;
+        } else if (climbResult.climbTower.result.game?.status !== "ACTIVE") {
+          // Auto-cashed out at maxFloor
+          gameActive = false;
+        }
+      }
+
+      // Restore balance for next game
+      await hub.dbPool.query(
+        `UPDATE hub.balance SET amount = 100000 WHERE user_id = $1 AND experience_id = $2`,
+        [player.id, experience.id],
+      );
+    }
+
+    assert.ok(bustedGameId, "Should have busted a game");
+
+    // Try to cashout the BUST game - should fail
+    await assert.rejects(
+      graphqlClient.request(
+        gql`
+          mutation Cashout($input: CashoutTowerInput!) {
+            cashoutTower(input: $input) {
+              payout
+            }
+          }
+        `,
+        { input: { gameId: bustedGameId } },
+      ),
+      /Game is not active/,
+    );
+  });
+
+  it("rejects cashing out an already CASHOUT game", async () => {
+    const experience = await createExperience(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+    });
+    const player = await createPlayer(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      uname: "double-cashout",
+    });
+    await createPlayerBalance(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      currencyKey: "HOUSE",
+      amount: 100000,
+    });
+    await createHouseBankroll(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      currencyKey: "HOUSE",
+      amount: 1_000_000,
+    });
+    const hashChain = await createHashChain(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      casinoId: hub.playgroundCasinoId,
+      maxIterations: 100,
+    });
+
+    const { graphqlClient } = await hub.authenticate(player.id, experience.id);
+
+    // Keep trying until we successfully climb and cashout
+    let gameId: string | null = null;
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const startResult = await graphqlClient.request<{
+        startTowerGame: { result: { game?: { id: string } } };
+      }>(
+        gql`
+          mutation StartGame($input: StartTowerGameInput!) {
+            startTowerGame(input: $input) {
+              result {
+                ... on StartTowerGameSuccess {
+                  game {
+                    id
+                  }
+                }
+              }
+            }
+          }
+        `,
+        {
+          input: {
+            wager: 100,
+            currency: "HOUSE",
+            doors: 2,
+            hashChainId: hashChain.id,
+            clientSeed: `start-${attempt}`,
+          },
+        },
+      );
+      assert.ok(startResult.startTowerGame.result.game);
+      gameId = startResult.startTowerGame.result.game.id;
+
+      const climbResult = await graphqlClient.request<{
+        climbTower: {
+          result: {
+            __typename: string;
+            game?: { status: string };
+            safe?: boolean;
+          };
+        };
+      }>(
+        gql`
+          mutation Climb($input: ClimbTowerInput!) {
+            climbTower(input: $input) {
+              result {
+                __typename
+                ... on ClimbTowerSuccess {
+                  game {
+                    status
+                  }
+                  safe
+                }
+              }
+            }
+          }
+        `,
+        { input: { gameId, door: 0, clientSeed: `climb-${attempt}` } },
+      );
+
+      if (climbResult.climbTower.result.safe) {
+        // Climbed successfully - now cashout
+        const cashoutResult = await graphqlClient.request<{
+          cashoutTower: { game: { status: string } };
+        }>(
+          gql`
+            mutation Cashout($input: CashoutTowerInput!) {
+              cashoutTower(input: $input) {
+                game {
+                  status
+                }
+              }
+            }
+          `,
+          { input: { gameId } },
+        );
+        assert.equal(cashoutResult.cashoutTower.game.status, "CASHOUT");
+        break;
+      }
+
+      await hub.dbPool.query(
+        `UPDATE hub.balance SET amount = 100000 WHERE user_id = $1 AND experience_id = $2`,
+        [player.id, experience.id],
+      );
+    }
+
+    assert.ok(gameId, "Should have created and cashed out a game");
+
+    // Try to cashout again - should fail
+    await assert.rejects(
+      graphqlClient.request(
+        gql`
+          mutation Cashout($input: CashoutTowerInput!) {
+            cashoutTower(input: $input) {
+              payout
+            }
+          }
+        `,
+        { input: { gameId } },
+      ),
+      /Game is not active/,
+    );
+  });
+});
+
+describe("Tower HubBadHashChainError", () => {
+  let hub: HubTestServer;
+
+  beforeAll(async () => {
+    hub = await startTestServer({
+      plugins: [
+        ...defaultPlugins,
+        TowerPlugin({ maxFloor: 10, riskPolicy: testRiskPolicy }),
+      ],
+      extraPgSchemas: ["app"],
+      userDatabaseMigrationsPath: resolve(
+        import.meta.dirname,
+        "../../migrations",
+      ),
+    });
+  }, 30000);
+
+  afterAll(async () => {
+    if (hub) {
+      await hub.stop();
+    }
+  });
+
+  it("startTowerGame returns HubBadHashChainError for non-existent hash chain", async () => {
+    const experience = await createExperience(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+    });
+    const player = await createPlayer(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      uname: "bad-chain-start",
+    });
+    await createPlayerBalance(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      currencyKey: "HOUSE",
+      amount: 1000,
+    });
+    await createHouseBankroll(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      currencyKey: "HOUSE",
+      amount: 1_000_000,
+    });
+
+    const { graphqlClient } = await hub.authenticate(player.id, experience.id);
+
+    const result = await graphqlClient.request<{
+      startTowerGame: {
+        result: {
+          __typename: string;
+          message?: string;
+        };
+      };
+    }>(
+      gql`
+        mutation StartGame($input: StartTowerGameInput!) {
+          startTowerGame(input: $input) {
+            result {
+              __typename
+              ... on HubBadHashChainError {
+                message
+              }
+            }
+          }
+        }
+      `,
+      {
+        input: {
+          wager: 100,
+          currency: "HOUSE",
+          doors: 2,
+          hashChainId: "00000000-0000-0000-0000-000000000000",
+          clientSeed: "test",
+        },
+      },
+    );
+
+    assert.equal(result.startTowerGame.result.__typename, "HubBadHashChainError");
+    assert.ok(result.startTowerGame.result.message?.includes("not found"));
+  });
+
+  it("startTowerGame returns HubBadHashChainError for inactive hash chain", async () => {
+    const experience = await createExperience(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+    });
+    const player = await createPlayer(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      uname: "inactive-chain-start",
+    });
+    await createPlayerBalance(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      currencyKey: "HOUSE",
+      amount: 1000,
+    });
+    await createHouseBankroll(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      currencyKey: "HOUSE",
+      amount: 1_000_000,
+    });
+    const hashChain = await createHashChain(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      casinoId: hub.playgroundCasinoId,
+    });
+
+    // Deactivate the hash chain
+    await hub.dbPool.query(
+      `UPDATE hub.hash_chain SET active = false WHERE id = $1`,
+      [hashChain.id],
+    );
+
+    const { graphqlClient } = await hub.authenticate(player.id, experience.id);
+
+    const result = await graphqlClient.request<{
+      startTowerGame: {
+        result: {
+          __typename: string;
+          message?: string;
+        };
+      };
+    }>(
+      gql`
+        mutation StartGame($input: StartTowerGameInput!) {
+          startTowerGame(input: $input) {
+            result {
+              __typename
+              ... on HubBadHashChainError {
+                message
+              }
+            }
+          }
+        }
+      `,
+      {
+        input: {
+          wager: 100,
+          currency: "HOUSE",
+          doors: 2,
+          hashChainId: hashChain.id,
+          clientSeed: "test",
+        },
+      },
+    );
+
+    assert.equal(result.startTowerGame.result.__typename, "HubBadHashChainError");
+    assert.ok(result.startTowerGame.result.message?.includes("not found") || result.startTowerGame.result.message?.includes("inactive"));
+  });
+
+  it("climbTower returns HubBadHashChainError when no active hash chain", async () => {
+    const experience = await createExperience(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+    });
+    const player = await createPlayer(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      uname: "no-chain-climb",
+    });
+    await createPlayerBalance(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      currencyKey: "HOUSE",
+      amount: 1000,
+    });
+    await createHouseBankroll(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      currencyKey: "HOUSE",
+      amount: 1_000_000,
+    });
+    const hashChain = await createHashChain(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      casinoId: hub.playgroundCasinoId,
+    });
+
+    const { graphqlClient } = await hub.authenticate(player.id, experience.id);
+
+    // Start a game
+    const startResult = await graphqlClient.request<{
+      startTowerGame: { result: { game?: { id: string } } };
+    }>(
+      gql`
+        mutation StartGame($input: StartTowerGameInput!) {
+          startTowerGame(input: $input) {
+            result {
+              ... on StartTowerGameSuccess {
+                game {
+                  id
+                }
+              }
+            }
+          }
+        }
+      `,
+      {
+        input: {
+          wager: 100,
+          currency: "HOUSE",
+          doors: 2,
+          hashChainId: hashChain.id,
+          clientSeed: "test",
+        },
+      },
+    );
+    assert.ok(startResult.startTowerGame.result.game);
+    const gameId = startResult.startTowerGame.result.game.id;
+
+    // Deactivate the hash chain
+    await hub.dbPool.query(
+      `UPDATE hub.hash_chain SET active = false WHERE id = $1`,
+      [hashChain.id],
+    );
+
+    // Try to climb
+    const climbResult = await graphqlClient.request<{
+      climbTower: {
+        result: {
+          __typename: string;
+          message?: string;
+        };
+      };
+    }>(
+      gql`
+        mutation Climb($input: ClimbTowerInput!) {
+          climbTower(input: $input) {
+            result {
+              __typename
+              ... on HubBadHashChainError {
+                message
+              }
+            }
+          }
+        }
+      `,
+      { input: { gameId, door: 0, clientSeed: "climb" } },
+    );
+
+    assert.equal(climbResult.climbTower.result.__typename, "HubBadHashChainError");
+    assert.ok(climbResult.climbTower.result.message?.includes("No active hash chain"));
+  });
+
+  it("climbTower returns HubBadHashChainError when hash chain exhausted", async () => {
+    const experience = await createExperience(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+    });
+    const player = await createPlayer(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      uname: "exhausted-chain",
+    });
+    await createPlayerBalance(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      currencyKey: "HOUSE",
+      amount: 100000,
+    });
+    await createHouseBankroll(hub.dbPool, {
+      casinoId: hub.playgroundCasinoId,
+      currencyKey: "HOUSE",
+      amount: 1_000_000,
+    });
+    // Create a hash chain with only 2 iterations (iteration 0 is reserved, so only iteration 1 is usable)
+    const hashChain = await createHashChain(hub.dbPool, {
+      userId: player.id,
+      experienceId: experience.id,
+      casinoId: hub.playgroundCasinoId,
+      maxIterations: 2,
+    });
+
+    const { graphqlClient } = await hub.authenticate(player.id, experience.id);
+
+    // Start a game
+    const startResult = await graphqlClient.request<{
+      startTowerGame: { result: { game?: { id: string } } };
+    }>(
+      gql`
+        mutation StartGame($input: StartTowerGameInput!) {
+          startTowerGame(input: $input) {
+            result {
+              ... on StartTowerGameSuccess {
+                game {
+                  id
+                }
+              }
+            }
+          }
+        }
+      `,
+      {
+        input: {
+          wager: 100,
+          currency: "HOUSE",
+          doors: 2,
+          hashChainId: hashChain.id,
+          clientSeed: "test",
+        },
+      },
+    );
+    assert.ok(startResult.startTowerGame.result.game);
+    let gameId = startResult.startTowerGame.result.game.id;
+
+    // Climb once - this uses iteration 1
+    const firstClimbResult = await graphqlClient.request<{
+      climbTower: {
+        result: {
+          __typename: string;
+          game?: { status: string };
+          safe?: boolean;
+        };
+      };
+    }>(
+      gql`
+        mutation Climb($input: ClimbTowerInput!) {
+          climbTower(input: $input) {
+            result {
+              __typename
+              ... on ClimbTowerSuccess {
+                game {
+                  status
+                }
+                safe
+              }
+            }
+          }
+        }
+      `,
+      { input: { gameId, door: 0, clientSeed: "climb1" } },
+    );
+
+    assert.equal(firstClimbResult.climbTower.result.__typename, "ClimbTowerSuccess");
+
+    // If busted, start new game; if safe, continue climbing - either way, try to climb again
+    if (!firstClimbResult.climbTower.result.safe) {
+      // Restore balance
+      await hub.dbPool.query(
+        `UPDATE hub.balance SET amount = 100000 WHERE user_id = $1 AND experience_id = $2`,
+        [player.id, experience.id],
+      );
+
+      // Start new game
+      const newStartResult = await graphqlClient.request<{
+        startTowerGame: { result: { game?: { id: string } } };
+      }>(
+        gql`
+          mutation StartGame($input: StartTowerGameInput!) {
+            startTowerGame(input: $input) {
+              result {
+                ... on StartTowerGameSuccess {
+                  game {
+                    id
+                  }
+                }
+              }
+            }
+          }
+        `,
+        {
+          input: {
+            wager: 100,
+            currency: "HOUSE",
+            doors: 2,
+            hashChainId: hashChain.id,
+            clientSeed: "test2",
+          },
+        },
+      );
+      assert.ok(newStartResult.startTowerGame.result.game);
+      gameId = newStartResult.startTowerGame.result.game.id;
+    }
+
+    // Now try to climb again - hash chain should be exhausted
+    const secondClimbResult = await graphqlClient.request<{
+      climbTower: {
+        result: {
+          __typename: string;
+          message?: string;
+        };
+      };
+    }>(
+      gql`
+        mutation Climb($input: ClimbTowerInput!) {
+          climbTower(input: $input) {
+            result {
+              __typename
+              ... on HubBadHashChainError {
+                message
+              }
+            }
+          }
+        }
+      `,
+      { input: { gameId, door: 0, clientSeed: "climb2" } },
+    );
+
+    assert.equal(secondClimbResult.climbTower.result.__typename, "HubBadHashChainError");
+    assert.ok(secondClimbResult.climbTower.result.message?.includes("exhausted"));
   });
 });

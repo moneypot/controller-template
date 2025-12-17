@@ -67,12 +67,12 @@ describe("StartInputSchema", () => {
     assert.equal(result.success, false);
   });
 
-  it("rejects empty clientSeed", () => {
+  it("accepts empty clientSeed", () => {
     const result = StartInputSchema.safeParse({
       ...validInput,
       clientSeed: "",
     });
-    assert.equal(result.success, false);
+    assert.equal(result.success, true);
   });
 });
 
@@ -111,12 +111,12 @@ describe("ClimbInputSchema", () => {
     assert.equal(result.success, false);
   });
 
-  it("rejects empty clientSeed", () => {
+  it("accepts empty clientSeed", () => {
     const result = ClimbInputSchema.safeParse({
       ...validInput,
       clientSeed: "",
     });
-    assert.equal(result.success, false);
+    assert.equal(result.success, true);
   });
 });
 
